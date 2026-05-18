@@ -1,6 +1,6 @@
-//nmkrspvlidata
-//radhakrishna 
-// NMKRSPVLIDATAPERMANENT  
+//Md Saif Ali
+// 
+// Md Saif AliPERMANENT  
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
@@ -242,7 +242,7 @@ try {
 // Start the HTTP server only after successful DB connection. Exit on failure.
 mongooseService.connect()
   .then(() => {
-    console.log('\n🎯 NMKRSPVLIDATA');
+    console.log('\n🎯 Md Saif Ali');
     console.log('✅ MongoDB: Connected');
     
     // Start contest status auto-updater

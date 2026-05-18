@@ -1,9 +1,9 @@
 // Import ProgressService for AI assessment
 import progressService from './ProgressService';
-//nmkrspvlidata
-//radhakrishna
+//Md Saif Ali
+//
 // SIMPLE GEMINI SERVICE - DIRECT API CALLS
-// NMKRSPVLIDATAPERMANENT - No more n8n complexity!
+// Md Saif AliPERMANENT - No more n8n complexity!
 
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 

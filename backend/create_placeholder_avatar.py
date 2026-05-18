@@ -1,4 +1,4 @@
-# NMKRSPVLIDATA
+# Md Saif Ali
 """
 Create a default placeholder avatar image for SadTalker
 Generates a professional-looking avatar placeholder

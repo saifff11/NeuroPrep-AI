@@ -1,4 +1,4 @@
-// NMKRSPVLIDATA - Ollama MCQ Generation Routes
+// Md Saif Ali - Ollama MCQ Generation Routes
 // Simple endpoint to generate MCQ questions using Ollama backend
 
 const express = require('express');

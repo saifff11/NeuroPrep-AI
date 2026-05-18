@@ -1,4 +1,4 @@
-// NMKRSPVLIDATA_XCEL_DOWNLOAD
+// Md Saif Ali_XCEL_DOWNLOAD
 // Script to sync performance data for all contests
 // Run this after implementing the feature to populate performance data from existing submissions
 

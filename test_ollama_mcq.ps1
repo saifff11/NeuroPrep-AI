@@ -1,5 +1,5 @@
 # PowerShell Test for Ollama MCQ Endpoint
-# nmkrspvlidata - quick test script for Windows
+# Md Saif Ali - quick test script for Windows
 
 Write-Host "🧪 Testing Ollama MCQ Generation Endpoint" -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan

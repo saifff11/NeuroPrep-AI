@@ -1,6 +1,6 @@
-<!--nmkrspvlidata-->
-<!--radhakrishna-->
-<!--RADHAKRISHNALOVEPERMANENT-->
+<!--Md Saif Ali-->
+<!---->
+<!--LOVEPERMANENT-->
 <!--AMMALOVEBLESSINGSONRECURSION-->
 
 # 🚀 neuroprepai
@@ -210,8 +210,8 @@ This project is licensed under the MIT License.
 
 ## 👥 Authors
 
-- **nmkrspvlidata**
-- **radhakrishna**
+- **Md Saif Ali**
+- ****
 
 ---
 

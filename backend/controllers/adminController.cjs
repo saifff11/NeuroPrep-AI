@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const Admin = require('../models/Admin.cjs');
 const CustomInterview = require('../models/CustomInterview.cjs');
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.ADMIN_SECRET || 'NMKRSPVLIDATA_JWT_SECRET';
+const JWT_SECRET = process.env.JWT_SECRET || process.env.ADMIN_SECRET || 'Md Saif Ali_JWT_SECRET';
 const COOKIE_NAME = 'ace_admin_token';
 const TOKEN_EXPIRES_IN = '7d'; // 7 days
 const COOKIE_MAX_AGE = 1000 * 60 * 60 * 24 * 7; // 7 days

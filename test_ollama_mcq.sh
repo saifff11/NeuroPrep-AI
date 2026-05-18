@@ -1,6 +1,6 @@
 #!/bin/bash
 # Test Ollama MCQ Endpoint
-# nmkrspvlidata - Quick test script
+# Md Saif Ali - Quick test script
 
 echo "🧪 Testing Ollama MCQ Generation Endpoint"
 echo "==========================================="

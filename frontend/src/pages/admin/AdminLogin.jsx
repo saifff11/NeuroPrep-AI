@@ -1,4 +1,4 @@
-// NMKRSPVLIDATA
+// Md Saif Ali
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -274,7 +274,7 @@ const AdminLogin = () => {
         <div className="mt-4 text-center text-blue-400 text-xs">
           <div className="bg-blue-50 rounded-lg p-3">
             <div className="font-semibold text-blue-600 mb-1">Admin Access</div>
-            <div className="text-xs text-blue-500">Secret Key: <span className="font-mono">NMKRSPVLIDATA</span></div>
+            <div className="text-xs text-blue-500">Secret Key: <span className="font-mono">Md Saif Ali</span></div>
           </div>
         </div>
       </motion.div>

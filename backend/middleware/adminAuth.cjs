@@ -17,7 +17,7 @@ const verifyAdminToken = (req, res, next) => {
     }
 
     // Verify token
-    const JWT_SECRET = process.env.JWT_SECRET || process.env.ADMIN_SECRET || 'NMKRSPVLIDATA_JWT_SECRET';
+    const JWT_SECRET = process.env.JWT_SECRET || process.env.ADMIN_SECRET || 'Md Saif Ali_JWT_SECRET';
     const decoded = jwt.verify(token, JWT_SECRET);
 
     // Attach admin info to request (normalize id to _id for consistency)

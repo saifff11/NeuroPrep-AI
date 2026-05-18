@@ -1,6 +1,6 @@
 // OLLAMA SERVICE - Simple Frontend API for Ollama Backend
 // Uses the Cloudflare tunnel endpoint configured in backend
-// nmkrspvlidata - radhakrishna
+// Md Saif Ali - 
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 
   import.meta.env.VITE_API_BASE_URL + '/api' ||
