@@ -1,0 +1,480 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Professional theme colors */
+:root {
+  --primary-blue: #1d4ed8;
+  --primary-blue-hover: #1e40af;
+  --primary-blue-light: rgba(29, 78, 216, 0.1);
+  --primary-purple: #7c3aed;
+  --primary-purple-hover: #6d28d9;
+  --text-blue: #1d4ed8;
+  --text-black: #000000;
+  --bg-white: #ffffff;
+  --glass-bg: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.2);
+}
+
+ 
+.Toastify__toast-container {
+ 
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  z-index: 9999999 !important;  
+}
+
+.Toastify__toast {
+  margin-bottom: 1rem !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
+  backdrop-filter: blur(10px) !important;
+  min-height: 70px !important;
+  font-weight: 600 !important;
+}
+
+.Toastify__toast--info {
+  background: linear-gradient(135deg, #e8f4fd, #f0f9ff) !important;
+  border: 2px solid #3b82f6 !important;
+  color: #1e40af !important;
+}
+
+.Toastify__toast--success {
+  background: linear-gradient(135deg, #ecfdf5, #f0fdf4) !important;
+  border: 2px solid #10b981 !important;
+  color: #065f46 !important;
+}
+
+.Toastify__toast--warning {
+  background: linear-gradient(135deg, #fef3c7, #fefce8) !important;
+  border: 2px solid #f59e0b !important;
+  color: #92400e !important;
+}
+
+.Toastify__toast--error {
+  background: linear-gradient(135deg, #fef2f2, #fef1f1) !important;
+  border: 2px solid #ef4444 !important;
+  color: #991b1b !important;
+}
+
+.Toastify__progress-bar--info {
+  background: #3b82f6 !important;
+}
+
+.Toastify__progress-bar--success {
+  background: #10b981 !important;
+}
+
+.Toastify__progress-bar--warning {
+  background: #f59e0b !important;
+}
+
+.Toastify__progress-bar--error {
+  background: #ef4444 !important;
+}
+
+/* Motivational toast specific styling */
+.motivational-toast,
+.motivational-toast-professional {
+  animation: slideInAndPulse 0.8s ease-out !important;
+}
+
+@keyframes slideInAndPulse {
+  0% {
+    transform: translateX(100%) scale(0.8);
+    opacity: 0;
+  }
+  50% {
+    transform: translateX(0) scale(1.05);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* 💻 COMPILER SLIDE DOWN ANIMATION */
+@keyframes slideDown {
+  0% {
+    transform: translateY(-30px);
+    opacity: 0;
+    max-height: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+    max-height: 1000px;
+  }
+}
+
+.animate-slideDown {
+  animation: slideDown 0.5s ease-out forwards;
+}
+
+/* 🎨 BEAUTIFUL LOADING ANIMATIONS */
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(59, 130, 246, 0.6);
+  }
+}
+
+.float-animation {
+  animation: float 3s ease-in-out infinite;
+}
+
+.glow-animation {
+  animation: glow 2s ease-in-out infinite;
+}
+
+/* Apply global styles */
+body {
+  background-color: var(--bg-white);
+  color: var(--text-black);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+/* Prevent accidental horizontal overflow caused by large absolute accent blobs or editor sizing */
+html, body {
+  overflow-x: hidden;
+}
+
+/* Smooth animations */
+* {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Headings use blue-700 */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-blue);
+  font-weight: 700;
+}
+
+/* Professional glass morphism effect */
+.glass-morphism {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+}
+
+/* Professional gradients */
+.gradient-primary {
+  background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Enhanced button styles */
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 24px;
+  font-weight: 600;
+  box-shadow: 0 10px 25px -5px rgba(29, 78, 216, 0.3);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateY(0);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px -5px rgba(29, 78, 216, 0.4);
+}
+
+.btn-secondary {
+  background-color: white;
+  color: var(--text-black);
+  border: 2px solid var(--primary-blue);
+  border-radius: 12px;
+  padding: 12px 24px;
+  font-weight: 600;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-secondary:hover {
+  background-color: var(--primary-blue-light);
+  transform: translateY(-1px);
+}
+
+/* Professional card styles */
+.card-professional {
+  background: white;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(229, 231, 235, 0.8);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-professional:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 60px -10px rgba(0, 0, 0, 0.15);
+}
+
+/* Professional loading animations */
+@keyframes pulse-gradient {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.animate-pulse-gradient {
+  animation: pulse-gradient 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Professional scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-blue-hover);
+}
+
+/* Professional code editor styling */
+.monaco-editor .margin {
+  background-color: transparent !important;
+}
+
+/* Enhanced toast notifications */
+.Toastify__toast {
+  border-radius: 12px;
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.2);
+}
+
+.Toastify__toast--success {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.Toastify__toast--error {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.Toastify__toast--info {
+  background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+}
+
+.Toastify__toast--warning {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+/* Professional selection styles */
+::selection {
+  background: var(--primary-blue-light);
+  color: var(--primary-blue);
+}
+
+::-moz-selection {
+  background: var(--primary-blue-light);
+  color: var(--primary-blue);
+}
+
+/* Professional focus styles */
+.focus-ring {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
+  border-color: var(--primary-blue);
+}
+
+/* Professional animations */
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Professional hover effects */
+.hover-lift {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 60px -10px rgba(0, 0, 0, 0.15);
+}
+
+/* Custom slider styles for voice settings */
+.voice-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  border-radius: 4px;
+  background: #e5e7eb;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.voice-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary-blue);
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+}
+
+.voice-slider::-webkit-slider-thumb:hover {
+  background: var(--primary-blue-hover);
+  transform: scale(1.1);
+}
+
+.voice-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary-blue);
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+}
+
+.voice-slider::-moz-range-thumb:hover {
+  background: var(--primary-blue-hover);
+  transform: scale(1.1);
+}
+
+.voice-slider:focus {
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.3);
+}
+
+/* Reusable application sidebar style (use on any sidebar/drawer) */
+/* Use plain CSS instead of @apply to avoid tooling issues while keeping the same look */
+.app-sidebar {
+  background: linear-gradient(135deg, var(--primary-blue), #1e40af);
+  color: #ffffff;
+  border-radius: 1rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  border: 2px solid #1e40af;
+}
+
+.app-sidebar a,
+.app-sidebar p,
+.app-sidebar span,
+.app-sidebar div,
+.app-sidebar button {
+  /* Ensure text inside sidebars is readable */
+  color: #ffffff;
+}
+/* Shine Button Global Custom CSS */
+.shine-button {
+  position: relative;
+  transition: all 0.3s ease-in-out;
+  box-shadow: 0px 10px 20px rgba(0, 0, 0, 0.2);
+  padding-block: 0.5rem;
+  padding-inline: 1.25rem;
+  background-color: rgb(0 107 179);
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffff;
+  gap: 10px;
+  font-weight: bold;
+  border: 3px solid #ffffff4d;
+  outline: none;
+  overflow: hidden;
+  font-size: 15px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.shine-icon {
+  width: 24px;
+  height: 24px;
+  transition: all 0.3s ease-in-out;
+}
+
+.shine-button:hover {
+  transform: scale(1.05);
+  border-color: #fff9;
+}
+
+.shine-button:hover .shine-icon {
+  transform: translate(4px);
+}
+
+.shine-button:hover::before {
+  animation: shine 1.5s ease-out infinite;
+}
+
+.shine-button::before {
+  content: "";
+  position: absolute;
+  width: 100px;
+  height: 100%;
+  background-image: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0) 30%,
+    rgba(255, 255, 255, 0.8),
+    rgba(255, 255, 255, 0) 70%
+  );
+  top: 0;
+  left: -100px;
+  opacity: 0.6;
+}

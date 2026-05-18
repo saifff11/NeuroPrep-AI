@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: neuroprepai-backend
+    env: node
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: rm -rf ../node_modules ../package-lock.json 2>/dev/null || true && npm install --no-workspaces --ignore-scripts && npm rebuild
+    startCommand: NODE_PATH=./node_modules node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        fromDatabase:
+          name: neuroprepai-db
+          property: connectionString
+      - key: GEMINI_API_URL
+        value: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent
+      - key: GEMINI_API_KEY
+        sync: false # Set manually in dashboard for security
+      - key: JWT_SECRET
+        sync: false # Set manually in dashboard for security - used for admin authentication
+      - key: REQUEST_TIMEOUT
+        value: 30000
+      - key: CORS_ORIGIN
+        value: http://localhost:5173,http://localhost:5174,http://localhost:5175,http://neuroprepai.app,https://neuroprepai.app,https://www.neuroprepai.app,http://www.neuroprepai.app,https://neuroprepai.onrender.com,https://neuroprepai-*.vercel.app
