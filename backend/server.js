@@ -17,24 +17,34 @@ const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 
 // CORS Configuration with enhanced logging
-const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
-  : [
-      "http://localhost:3000",
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "http://localhost:5175",
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:5175",
 
-      "https://neuro-prep-ai.vercel.app",
-      "https://www.neuro-prep-ai.vercel.app",
+  "https://neuro-prep-ai.vercel.app",
+  "https://www.neuro-prep-ai.vercel.app",
+];
 
-      "https://neuroprepai.app",
-      "http://www.neuroprepai.app",
-      "https://www.neuroprepai.app",
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // allow requests with no origin (mobile apps/postman)
+      if (!origin) return callback(null, true);
 
-      "https://neuroprepai.onrender.com",
-      "https://neuroprepai-backend.onrender.com",
-    ];
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.log("❌ CORS blocked for origin:", origin);
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
 
 console.log("🌐 CORS Origins configured:", allowedOrigins);
 
