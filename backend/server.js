@@ -46,6 +46,8 @@ app.use(
   }),
 );
 
+app.options('*', cors());
+
 console.log("🌐 CORS Origins configured:", allowedOrigins);
 
 // Socket.IO Configuration
