@@ -1,27 +1,34 @@
-// LOVEPERMANENT
-// AMMALOVEBLESSINGSONRECURSION
+// LOVEWITHSAIF
+// MADEWITHBLESSINGS
 // AI Interview Controller - FLOW LOGIC (Calls HuggingFace Space)
 
-const axios = require('axios');
 const multer = require('multer');
 const pdf = require('pdf-parse');
 const fs = require('fs').promises;
 const path = require('path');
 const StudentPerformance = require('../models/StudentPerformance.cjs');
 const mongoose = require('mongoose');
+const aiProvider = require('../services/aiProviderService.cjs');
 
-// Ollama AI Service Configuration - External GPU Server (Cloudflare Tunnel)
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'https://pricing-correction-agenda-criterion.trycloudflare.com';
+// Ollama is used locally; production falls through the central AI provider.
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || process.env.OLLAMA_API_URL || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2:1b';
+const providerConfig = aiProvider.getConfig();
 
 console.log('═══════════════════════════════════════════════════════');
 console.log('🤖 Ollama External GPU Configuration');
 console.log('═══════════════════════════════════════════════════════');
-console.log(`   🌐 External GPU Endpoint: ${OLLAMA_BASE_URL}`);
-console.log(`   🧠 AI Model: ${OLLAMA_MODEL}`);
-console.log(`   ⚡ All AI operations will use this endpoint`);
+console.log(`   🌐 Local Ollama Endpoint: ${OLLAMA_BASE_URL}`);
+console.log(`   🧠 Local Ollama Model: ${OLLAMA_MODEL}`);
+console.log(`   ⚡ Active AI provider sequence: ${providerConfig.providerSequence.join(' -> ')}`);
 console.log('═══════════════════════════════════════════════════════');
 console.log('');
+
+async function generateAIText(prompt, options = {}) {
+  const result = await aiProvider.generateText(prompt, options);
+  console.log(`AI response generated via ${result.source}${result.fallbackUsed ? ' (fallback)' : ''}`);
+  return result;
+}
 
 // Multer configuration for PDF uploads
 const storage = multer.diskStorage({
@@ -134,26 +141,14 @@ Question: [Your specific ${subject} question]`;
     console.log('📤 REQUEST SENT TO EXTERNAL GPU...');
     const startTime = Date.now();
 
-    const response = await axios.post(
-      `${OLLAMA_BASE_URL}/api/generate`,
-      {
-        model: OLLAMA_MODEL,
-        prompt: prompt,
-        stream: false,
-        options: {
-          temperature: 0.8,
-          num_predict: 150,
-          stop: ['\n\n', 'Question 2', 'Next:']
-        }
-      },
-      {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 30000
-      }
-    );
+    const aiResult = await generateAIText(prompt, {
+      temperature: 0.8,
+      maxTokens: 150,
+      stop: ['\n\n', 'Question 2', 'Next:'],
+      timeout: 30000
+    });
 
-    const aiResult = response.data;
-    let aiResponse = aiResult.response?.trim() || '';
+    let aiResponse = aiResult.text?.trim() || '';
     const responseTime = Date.now() - startTime;
     
     console.log('📥 RESPONSE RECEIVED FROM EXTERNAL GPU');
@@ -299,19 +294,14 @@ Your question:`;
         console.log('📤 Sending empty answer question request...');
         const emptyStartTime = Date.now();
         
-        const aiResponse = await axios.post(
-          `${OLLAMA_BASE_URL}/api/generate`,
-          {
-            model: OLLAMA_MODEL,
-            prompt: emptyAnswerPrompt,
-            stream: false,
-            options: { temperature: 0.8, num_predict: 150 }
-          },
-          { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
-        );
+        const aiResponse = await generateAIText(emptyAnswerPrompt, {
+          temperature: 0.8,
+          maxTokens: 150,
+          timeout: 15000
+        });
 
         const emptyResponseTime = Date.now() - emptyStartTime;
-        let generatedQuestion = aiResponse.data.response?.trim() || '';
+        let generatedQuestion = aiResponse.text?.trim() || '';
         
         console.log('📥 Response received from External GPU');
         console.log(`⏱️  Response time: ${emptyResponseTime}ms`);
@@ -436,26 +426,14 @@ Next Question: [Your specific, detailed question about ${subject}]`;
     console.log('📤 REQUEST SENT TO EXTERNAL GPU...');
     const analysisStartTime = Date.now();
     
-    const response = await axios.post(
-      `${OLLAMA_BASE_URL}/api/generate`,
-      {
-        model: OLLAMA_MODEL,
-        prompt: prompt,
-        stream: false,
-        options: {
-          temperature: 0.8,
-          num_predict: 400,
-          stop: ['\n\nQuestion']
-        }
-      },
-      {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 30000
-      }
-    );
+    const aiResult = await generateAIText(prompt, {
+      temperature: 0.8,
+      maxTokens: 400,
+      stop: ['\n\nQuestion'],
+      timeout: 30000
+    });
 
-    const aiResult = response.data;
-    const aiResponse = aiResult.response || '';
+    const aiResponse = aiResult.text || '';
     const analysisTime = Date.now() - analysisStartTime;
     
     console.log('📥 RESPONSE RECEIVED FROM EXTERNAL GPU');
@@ -771,17 +749,15 @@ exports.endInterview = async (req, res) => {
  */
 exports.checkHealth = async (req, res) => {
   try {
-    const response = await axios.get(`${OLLAMA_BASE_URL}/api/tags`, {
-      timeout: 5000
-    });
+    const health = await aiProvider.checkHealth();
 
     return res.json({
       success: true,
       status: 'healthy',
-      ollamaUrl: OLLAMA_BASE_URL,
-      model: OLLAMA_MODEL,
-      availableModels: response.data.models?.map(m => m.name) || [],
-      message: 'Ollama AI is running on external GPU server'
+      ai: health,
+      ollamaUrl: health.providers.ollama.url,
+      model: health.providers.ollama.model,
+      message: 'AI provider routing is configured'
     });
 
   } catch (error) {
@@ -822,6 +798,7 @@ exports.generateMCQQuestions = async (req, res) => {
     const batchSize = 3;
     const numBatches = Math.ceil(count / batchSize);
     let allQuestions = [];
+    let lastAIResult = null;
     let batchStartTime = Date.now();
 
     for (let i = 0; i < numBatches; i++) {
@@ -843,26 +820,15 @@ Return ONLY a valid JSON array matching this structure exactly:
 - Must be valid JSON array. No markdown code blocks.`;
 
       try {
-        const response = await axios.post(
-          `${OLLAMA_BASE_URL}/api/generate`,
-          {
-            model: OLLAMA_MODEL,
-            prompt: prompt,
-            stream: false,
-            format: 'json',
-            options: {
-              temperature: 0.7,
-              num_predict: 2000,
-              top_p: 0.9
-            }
-          },
-          {
-            headers: { 'Content-Type': 'application/json' },
-            timeout: 60000
-          }
-        );
+        const response = await generateAIText(prompt, {
+          temperature: 0.7,
+          maxTokens: 2000,
+          format: 'json',
+          timeout: 60000
+        });
+        lastAIResult = response;
 
-        let responseText = response.data.response || '';
+        let responseText = response.text || '';
         responseText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
         // Basic bracket fixing
@@ -916,8 +882,8 @@ Return ONLY a valid JSON array matching this structure exactly:
       count: allQuestions.length,
       topic: topic,
       difficulty: difficulty,
-      source: 'ollama',
-      model: OLLAMA_MODEL,
+      source: lastAIResult?.source || providerConfig.primaryProvider,
+      model: lastAIResult?.model || providerConfig.primaryModel,
       responseTime: responseTime
     });
 

@@ -2,16 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Professional theme colors */
+/* Product theme colors */
 :root {
-  --primary-blue: #1d4ed8;
-  --primary-blue-hover: #1e40af;
-  --primary-blue-light: rgba(29, 78, 216, 0.1);
-  --primary-purple: #7c3aed;
-  --primary-purple-hover: #6d28d9;
-  --text-blue: #1d4ed8;
-  --text-black: #000000;
-  --bg-white: #ffffff;
+  --primary-blue: #0891b2;
+  --primary-blue-hover: #0e7490;
+  --primary-blue-light: rgba(8, 145, 178, 0.1);
+  --primary-purple: #0f172a;
+  --primary-purple-hover: #1e293b;
+  --text-blue: #0f172a;
+  --text-black: #0f172a;
+  --bg-white: #f8fafc;
   --glass-bg: rgba(255, 255, 255, 0.1);
   --glass-border: rgba(255, 255, 255, 0.2);
 }
@@ -151,6 +151,13 @@ body {
   background-color: var(--bg-white);
   color: var(--text-black);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.saas-grid {
+  background-image:
+    linear-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 
 /* Prevent accidental horizontal overflow caused by large absolute accent blobs or editor sizing */

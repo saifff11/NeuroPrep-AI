@@ -1,7 +1,7 @@
 <!--Md Saif Ali-->
 <!---->
-<!--LOVEPERMANENT-->
-<!--AMMALOVEBLESSINGSONRECURSION-->
+<!--LOVEWITHSAIF-->
+<!--MADEWITHBLESSINGS-->
 
 # 🚀 neuroprepai
 **AI-Powered Interview Practice Platform with Intelligent Performance Prediction**

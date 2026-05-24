@@ -1,18 +1,57 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  ArrowLeft,
+  ArrowRight,
+  BadgeCheck,
+  BarChart3,
+  BrainCircuit,
+  CheckCircle2,
+  Clock3,
+  Code2,
+  Layers3,
+  PlayCircle,
+  Route,
+  Sparkles,
+  UserRoundCheck,
+} from 'lucide-react';
 import { ROUND_MODES, getRoundsForTrack, isModeImplemented } from '../../config/roundsConfig';
-import { tracksConfig, getTrackByKey } from '../../config/tracksConfig';
+import { getTrackByKey, tracksConfig } from '../../config/tracksConfig';
 import ChooseYourPath from '../../components/interview/ChooseYourPath';
 
-// Professional multi-step: Category (tech/non) -> Role selection -> Rounds list with START button
+const categoryCopy = {
+  tech: {
+    eyebrow: 'Technical interview OS',
+    title: 'Build a role-specific technical readiness plan.',
+    copy: 'Pick a role, review the round map, then launch the AI interview sequence with coding, MCQ, and live conversation practice.',
+  },
+  nonTech: {
+    eyebrow: 'Business interview OS',
+    title: 'Prepare for strategy, product, design, and leadership rounds.',
+    copy: 'Turn broad career goals into a structured interview sequence with clear signals and coaching checkpoints.',
+  },
+  company: {
+    eyebrow: 'Company pipeline OS',
+    title: 'Practice company-specific interview flows.',
+    copy: 'Prepare for aptitude, coding, technical, managerial, and HR stages with one guided round map.',
+  },
+};
+
+const modeIcon = (mode) => {
+  if (mode === ROUND_MODES.CODING) return Code2;
+  if (mode === ROUND_MODES.PERSON) return UserRoundCheck;
+  if (mode === ROUND_MODES.MCQ) return BrainCircuit;
+  return Route;
+};
+
 export default function InterviewPreparation() {
   const { category: urlCategory } = useParams();
   const [category, setCategory] = React.useState(
-    urlCategory === 'tech' ? 'tech' : 
-    urlCategory === 'non-tech' ? 'nonTech' : 
-    urlCategory === 'company' ? 'company' : null
-  ); 
+    urlCategory === 'tech' ? 'tech' :
+      urlCategory === 'non-tech' ? 'nonTech' :
+        urlCategory === 'company' ? 'company' : null
+  );
   const [selectedRoleKey, setSelectedRoleKey] = React.useState(null);
   const [showStartConfirmation, setShowStartConfirmation] = React.useState(false);
   const navigate = useNavigate();
@@ -26,310 +65,319 @@ export default function InterviewPreparation() {
 
   const selectedTrack = selectedRoleKey ? getTrackByKey(selectedRoleKey) : null;
   const rounds = selectedRoleKey ? getRoundsForTrack(selectedRoleKey) : [];
-  const implementedRounds = rounds.filter(r => isModeImplemented(r.mode));
+  const implementedRounds = rounds.filter((round) => isModeImplemented(round.mode));
   const totalRounds = rounds.length;
   const readyRounds = implementedRounds.length;
+  const currentCopy = categoryCopy[category] || categoryCopy.tech;
 
-  // Start full interview - navigate to first implemented round
+  const modeRoute = (mode) => {
+    switch (mode) {
+      case ROUND_MODES.CODING: return '/compiler';
+      case ROUND_MODES.PERSON: return '/face-to-face-interview';
+      case ROUND_MODES.MCQ: return '/mcq-interview';
+      default: return '/mcq-interview';
+    }
+  };
+
   const startFullInterview = () => {
     if (implementedRounds.length > 0) {
       const firstRound = implementedRounds[0];
-      navigate(modeRoute(firstRound.mode), { 
-        state: { 
+      navigate(modeRoute(firstRound.mode), {
+        state: {
           trackKey: selectedRoleKey,
-          roundNumber: firstRound.number 
-        } 
+          roundNumber: firstRound.number,
+        },
       });
     }
   };
 
-  const modeRoute = (mode) => {
-    switch(mode){
-      case ROUND_MODES.CODING: return '/compiler';
-      case ROUND_MODES.PERSON: return '/face-to-face-interview';
-      case ROUND_MODES.MCQ: return '/mcq-interview';
-      default: return '/mcq-interview'; // temporary fallback
-    }
-  };
-
-  // TrackCard subcomponent
-  const TrackCard = ({ track, delay=0 }) => {
+  const TrackCard = ({ track, delay = 0 }) => {
     const isUnsplash = track.img.includes('images.unsplash.com');
     const base = track.img.split('?')[0];
     const src400 = isUnsplash ? `${base}?auto=format&fit=crop&w=400&q=60` : track.img;
     const src800 = isUnsplash ? `${base}?auto=format&fit=crop&w=800&q=70` : track.img;
     const src1200 = isUnsplash ? `${base}?auto=format&fit=crop&w=1200&q=75` : track.img;
+
     return (
       <motion.button
+        type="button"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay, duration: 0.4 }}
-        whileHover={{ y: -6 }}
-        whileTap={{ scale: 0.97 }}
+        whileHover={{ y: -4 }}
+        whileTap={{ scale: 0.98 }}
         onClick={() => setSelectedRoleKey(track.key)}
-        className="group relative bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all text-left border border-blue-100/60 overflow-hidden flex flex-col"
+        className="group overflow-hidden rounded-lg border border-slate-200 bg-white text-left shadow-sm transition hover:border-cyan-300 hover:shadow-lg"
       >
-        <div className="h-44 md:h-48 lg:h-52 overflow-hidden relative bg-blue-100">
+        <div className="relative h-44 overflow-hidden bg-slate-200">
           <img
             src={src800}
             srcSet={isUnsplash ? `${src400} 400w, ${src800} 800w, ${src1200} 1200w` : undefined}
             sizes="(min-width:1280px) 30vw, (min-width:1024px) 33vw, (min-width:768px) 50vw, 100vw"
             loading="lazy"
             decoding="async"
-            alt={track.title + ' cover image'}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 select-none"/>
-          <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/10 via-black/0 to-black/10" />
+            alt={`${track.title} cover`}
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/55 to-transparent" />
+          <div className="absolute bottom-4 left-4 rounded-md bg-white/90 px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-slate-700">
+            {track.category}
+          </div>
         </div>
-        <div className="p-6 flex flex-col flex-1">
-          <h3 className="text-xl font-bold text-gray-800 mb-2">{track.title}</h3>
-          <p className="text-gray-600 text-sm mb-4 flex-1">{track.desc}</p>
-          <div className="flex flex-wrap gap-2 mb-4">
-            {track.subTopics.slice(0,3).map(s => (
-              <span key={s.name} className="text-[11px] px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100 font-medium">{s.name}</span>
+        <div className="flex min-h-[260px] flex-col p-5">
+          <h3 className="text-xl font-bold text-slate-950">{track.title}</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600">{track.desc}</p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {track.subTopics.slice(0, 4).map((topic) => (
+              <span key={topic.name} className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                {topic.name}
+              </span>
             ))}
           </div>
-          <span className="shine-button mt-auto">
-            Select Role 
-            <svg className="shine-icon" viewBox="0 0 24 24" fill="currentColor">
-              <path fillRule="evenodd" clipRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm4.28 10.28a.75.75 0 000-1.06l-3-3a.75.75 0 10-1.06 1.06l1.72 1.72H8.25a.75.75 0 000 1.5h5.69l-1.72 1.72a.75.75 0 101.06 1.06l3-3z"></path>
-            </svg>
-          </span>
+          <div className="mt-auto pt-6">
+            <span className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition group-hover:bg-cyan-700">
+              Build round map
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </span>
+          </div>
         </div>
       </motion.button>
     );
   };
 
-  // RoundCard subcomponent
   const RoundCard = ({ round }) => {
     const isImplemented = isModeImplemented(round.mode);
-    const modeEmoji = round.mode === ROUND_MODES.CODING ? '💻' :
-                      round.mode === ROUND_MODES.PERSON ? '🎭' :
-                      round.mode === ROUND_MODES.MCQ ? '📝' : '❓';
-    
+    const Icon = modeIcon(round.mode);
+
     return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
+        initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
-        className={`relative bg-white rounded-xl border-2 p-5 shadow-sm transition-all ${
-          isImplemented 
-            ? 'border-blue-200 hover:border-blue-400 hover:shadow-md' 
-            : 'border-gray-200 opacity-60'
-        }`}
+        className={`rounded-lg border p-5 shadow-sm ${isImplemented ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-100 opacity-70'}`}
       >
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">{modeEmoji}</span>
-            <h5 className="font-bold text-gray-800">{round.title}</h5>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className={`flex h-10 w-10 items-center justify-center rounded-md ${isImplemented ? 'bg-slate-950 text-white' : 'bg-slate-300 text-slate-600'}`}>
+              <Icon className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div>
+              <h5 className="font-bold text-slate-950">{round.label || round.title}</h5>
+              <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-slate-500">Round {round.stage ?? round.number}</p>
+            </div>
           </div>
-          {!isImplemented && (
-            <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full font-semibold">
-              Coming Soon
-            </span>
-          )}
+          <span className={`rounded-md px-2.5 py-1 text-xs font-bold ${isImplemented ? 'bg-teal-50 text-teal-700' : 'bg-amber-50 text-amber-700'}`}>
+            {isImplemented ? 'Ready' : 'Soon'}
+          </span>
         </div>
-        <p className="text-sm text-gray-600 mb-3">{round.description}</p>
-        <div className="flex items-center justify-between text-xs text-gray-500">
-          <span>Round {round.number}</span>
-          <span className="capitalize">{round.mode}</span>
-        </div>
+        <p className="text-sm leading-6 text-slate-600">{round.description || `${round.mode} readiness checkpoint`}</p>
       </motion.div>
     );
   };
 
-  // Main render
   return (
-    <div className="min-h-screen bg-white text-black font-sans relative overflow-hidden">
-      {/* Decorative corner accents for full page (responsive) */}
-      <div aria-hidden="true" className="pointer-events-none absolute -left-24 -top-16 w-44 h-44 rounded-full bg-gradient-to-br from-blue-100 to-transparent opacity-60 blur-2xl transform -rotate-12 sm:-left-32 sm:-top-24 sm:w-72 sm:h-72 sm:opacity-50"></div>
-      <div aria-hidden="true" className="pointer-events-none absolute -right-24 -bottom-12 w-52 h-52 rounded-full bg-gradient-to-tr from-blue-100 to-transparent opacity-55 blur-2xl transform rotate-12 sm:-right-40 sm:-bottom-24 sm:w-96 sm:h-96 sm:opacity-45"></div>
-      
-      <div className="max-w-7xl mx-auto py-10 relative z-10 px-4">
-        {/* Step 1: Choose Category (Tech/Non-Tech/Company) */}
+    <div className="saas-grid min-h-screen bg-slate-50 text-slate-950">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         {!category && !selectedRoleKey && (
-          <ChooseYourPath onSelectTrack={(trackType) => {
-            const path = trackType === 'nonTech' ? 'non-tech' : trackType;
-            navigate(`/preparation/${path}`);
-          }} />
+          <ChooseYourPath
+            onSelectTrack={(trackType) => {
+              const path = trackType === 'nonTech' ? 'non-tech' : trackType;
+              navigate(`/preparation/${path}`);
+            }}
+          />
         )}
 
-      {/* Step 2: Role Selection */}
-      {category && !selectedRoleKey && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
-          <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-            <div>
-              <h2 className="text-2xl font-bold text-blue-800">Select a Role</h2>
-              <p className="text-gray-600 text-sm">Choose the role you want to prepare for. Rounds are tailored per role.</p>
+        {category && !selectedRoleKey && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <div className="mb-8 rounded-lg border border-slate-200 bg-white p-6 shadow-sm lg:flex lg:items-end lg:justify-between lg:gap-8">
+              <div>
+                <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-700">
+                  <Sparkles className="h-4 w-4" aria-hidden="true" />
+                  {currentCopy.eyebrow}
+                </div>
+                <h1 className="max-w-3xl text-3xl font-bold text-slate-950 sm:text-4xl">{currentCopy.title}</h1>
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">{currentCopy.copy}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/preparation')}
+                className="mt-5 inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-cyan-300 hover:text-cyan-700 lg:mt-0"
+              >
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                Change path
+              </button>
             </div>
-            <button onClick={() => navigate('/preparation')} className="px-4 py-2 rounded-lg bg-white border border-blue-200 text-blue-700 font-medium hover:bg-blue-50 transition-colors">← Back</button>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {tracksConfig[category].map((t,i) => (
-              <TrackCard key={t.key} track={t} delay={i*0.06} />
-            ))}
-          </div>
-        </motion.div>
-      )}
 
-      {/* Step 3: Rounds with START Button */}
-      {selectedRoleKey && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 space-y-6">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <h2 className="text-2xl font-bold text-blue-800 mb-1">{selectedTrack?.title} – Interview Rounds</h2>
-              <p className="text-gray-600 text-sm max-w-xl">Progress through structured stages. Some advanced or strategic rounds may still be in development.</p>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {tracksConfig[category].map((track, index) => (
+                <TrackCard key={track.key} track={track} delay={index * 0.06} />
+              ))}
             </div>
-            <div className="flex gap-3">
-              <button onClick={() => setSelectedRoleKey(null)} className="px-5 py-2.5 rounded-lg bg-white border-2 border-blue-300 text-blue-700 font-semibold hover:bg-blue-50 hover:border-blue-400 transition-all shadow-sm hover:shadow-md">← Roles</button>
-              <button onClick={() => { setSelectedRoleKey(null); setCategory(null); }} className="px-5 py-2.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-all shadow-sm hover:shadow-md">Change Category</button>
-            </div>
-          </div>
+          </motion.div>
+        )}
 
-          {/* Interview Overview Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-2xl p-8 border-2 border-blue-200 shadow-lg"
-          >
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-              <div className="flex-1">
-                <h3 className="text-3xl font-bold mb-3 text-blue-800">Ready to Start Your Interview?</h3>
-                <p className="text-gray-700 text-lg mb-4">
-                  Complete <span className="font-bold text-blue-600">{totalRounds} rounds</span> to master {selectedTrack?.title} interviews
-                </p>
-                <div className="flex flex-wrap gap-4 text-sm">
-                  <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-lg border border-blue-100">
-                    <span className="text-2xl">📊</span>
-                    <div>
-                      <div className="font-semibold text-blue-800">{readyRounds}/{totalRounds} Rounds Ready</div>
-                      <div className="text-gray-600 text-xs">Available to practice now</div>
-                    </div>
+        {selectedRoleKey && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-5">
+                <div>
+                  <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-700">
+                    <Route className="h-4 w-4" aria-hidden="true" />
+                    Structured interview map
                   </div>
-                  <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-lg border border-blue-100">
-                    <span className="text-2xl">⏱️</span>
-                    <div>
-                      <div className="font-semibold text-blue-800">Real-Time Practice</div>
-                      <div className="text-gray-600 text-xs">Simulated interview experience</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-lg border border-blue-100">
-                    <span className="text-2xl">🎯</span>
-                    <div>
-                      <div className="font-semibold text-blue-800">Track Progress</div>
-                      <div className="text-gray-600 text-xs">Monitor your improvement</div>
-                    </div>
-                  </div>
+                  <h1 className="text-3xl font-bold text-slate-950">{selectedTrack?.title}</h1>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                    Move through the rounds sequentially or inspect each readiness checkpoint before starting.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRoleKey(null)}
+                    className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-cyan-300 hover:text-cyan-700"
+                  >
+                    <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                    Roles
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedRoleKey(null); setCategory(null); }}
+                    className="inline-flex items-center gap-2 rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                  >
+                    Change category
+                  </button>
                 </div>
               </div>
-              <div className="flex flex-col gap-3">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+              <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="mb-6 flex items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-950">Launch full interview</h2>
+                    <p className="mt-1 text-sm text-slate-600">Start from the first available AI round.</p>
+                  </div>
+                  <BadgeCheck className="h-6 w-6 text-teal-600" aria-hidden="true" />
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {[
+                    { icon: Layers3, label: 'Total rounds', value: totalRounds },
+                    { icon: CheckCircle2, label: 'Ready now', value: readyRounds },
+                    { icon: BarChart3, label: 'Signals tracked', value: 'Live' },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <div key={item.label} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <Icon className="h-4 w-4 text-cyan-600" aria-hidden="true" />
+                        <p className="mt-3 text-2xl font-bold text-slate-950">{item.value}</p>
+                        <p className="mt-1 text-xs font-medium text-slate-500">{item.label}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
                   onClick={() => setShowStartConfirmation(true)}
                   disabled={readyRounds === 0}
-                  className={`px-8 py-4 rounded-xl font-bold text-lg transition-all ${
-                    readyRounds > 0
-                      ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg border-2 border-blue-600 hover:border-blue-700'
-                      : 'bg-gray-200 text-gray-400 cursor-not-allowed border-2 border-gray-300'
-                  }`}
+                  className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-cyan-600 px-5 py-3 text-sm font-semibold text-white hover:bg-cyan-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
-                  {readyRounds > 0 ? (
-                    <span className="flex items-center gap-3">
-                      <span className="text-2xl">🚀</span>
-                      START FULL INTERVIEW
-                    </span>
-                  ) : (
-                    'No Rounds Available'
-                  )}
-                </motion.button>
-                <p className="text-gray-600 text-xs text-center">
-                  Complete all {readyRounds} rounds sequentially
-                </p>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Round Cards */}
-          <div>
-            <h4 className="text-lg font-semibold text-gray-800 mb-4">Individual Rounds ({totalRounds})</h4>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {rounds.map(r => <RoundCard key={r.id} round={r} />)}
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Start Confirmation Modal */}
-      <AnimatePresence>
-        {showStartConfirmation && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setShowStartConfirmation(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-2xl"
-            >
-              <div className="text-center mb-6">
-                <div className="text-6xl mb-4">🎯</div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Start Full Interview?</h3>
-                <p className="text-gray-600">
-                  You're about to begin a complete {selectedTrack?.title} interview with <strong>{readyRounds} rounds</strong>.
-                </p>
-              </div>
-
-              <div className="bg-blue-50 rounded-xl p-4 mb-6 border border-blue-100">
-                <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                  <span>📋</span> What to Expect:
-                </h4>
-                <ul className="space-y-2 text-sm text-blue-800">
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-600 mt-0.5">✓</span>
-                    <span>Complete {readyRounds} rounds sequentially</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-600 mt-0.5">✓</span>
-                    <span>Real-time coding, MCQs, and interactive interviews</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-600 mt-0.5">✓</span>
-                    <span>Progress automatically tracked</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-600 mt-0.5">✓</span>
-                    <span>Take breaks between rounds if needed</span>
-                  </li>
-                </ul>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowStartConfirmation(false)}
-                  className="flex-1 px-6 py-3 rounded-xl bg-white border-2 border-gray-300 hover:border-gray-400 text-gray-700 font-semibold transition-all hover:bg-gray-50 shadow-sm hover:shadow-md"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    setShowStartConfirmation(false);
-                    startFullInterview();
-                  }}
-                  className="flex-1 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all shadow-md hover:shadow-lg border-2 border-blue-600 hover:border-blue-700"
-                >
-                  Let's Begin! 🚀
+                  <PlayCircle className="h-4 w-4" aria-hidden="true" />
+                  Start full interview
                 </button>
               </div>
-            </motion.div>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-950 p-6 text-white shadow-sm">
+                <div className="mb-5 flex items-center gap-3">
+                  <Clock3 className="h-5 w-5 text-cyan-300" aria-hidden="true" />
+                  <h2 className="text-xl font-bold text-white">Operational flow</h2>
+                </div>
+                <p className="text-sm leading-6 text-slate-300">
+                  Every implemented round routes into an active product module: MCQ, coding compiler, or face-to-face AI interview.
+                </p>
+                <div className="mt-6 space-y-3">
+                  {implementedRounds.slice(0, 3).map((round) => (
+                    <div key={round.id} className="flex items-center justify-between rounded-lg bg-white/10 px-4 py-3 text-sm">
+                      <span className="font-semibold text-white">{round.label}</span>
+                      <span className="text-cyan-200">{round.mode}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h2 className="mb-4 text-lg font-bold text-slate-950">Round sequence</h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {rounds.map((round) => <RoundCard key={round.id} round={round} />)}
+              </div>
+            </div>
           </motion.div>
         )}
-      </AnimatePresence>
+
+        <AnimatePresence>
+          {showStartConfirmation && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+              onClick={() => setShowStartConfirmation(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.96, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.96, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-lg rounded-lg border border-slate-200 bg-white p-6 shadow-2xl"
+              >
+                <div className="mb-6">
+                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-md bg-cyan-600 text-white">
+                    <PlayCircle className="h-5 w-5" aria-hidden="true" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-slate-950">Start the full interview?</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    You will begin a complete {selectedTrack?.title} sequence with {readyRounds} active rounds.
+                  </p>
+                </div>
+
+                <div className="mb-6 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  {[
+                    `Complete ${readyRounds} ready rounds sequentially`,
+                    'Practice coding, MCQ, and face-to-face modules',
+                    'Track progress and continue after breaks',
+                  ].map((item) => (
+                    <div key={item} className="flex items-start gap-2 text-sm text-slate-700">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 text-teal-600" aria-hidden="true" />
+                      {item}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowStartConfirmation(false)}
+                    className="flex-1 rounded-md border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowStartConfirmation(false);
+                      startFullInterview();
+                    }}
+                    className="flex-1 rounded-md bg-slate-950 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+                  >
+                    Begin
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
 }
-

@@ -2,11 +2,11 @@
 // Uses the Cloudflare tunnel endpoint configured in backend
 // Md Saif Ali - 
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 
-  import.meta.env.VITE_API_BASE_URL + '/api' ||
-  (process.env.NODE_ENV === 'production' 
-    ? 'https://neuroprepai-backend.onrender.com/api'
-    : 'http://localhost:5000/api');
+const API_BASE_ROOT =
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.PROD ? 'https://neuroprepai-backend.onrender.com' : 'http://localhost:5000');
+const API_BASE_URL = API_BASE_ROOT.endsWith('/api') ? API_BASE_ROOT : `${API_BASE_ROOT}/api`;
 
 class OllamaService {
   /**

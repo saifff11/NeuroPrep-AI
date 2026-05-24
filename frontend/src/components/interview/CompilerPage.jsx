@@ -380,18 +380,18 @@ function CompilerPage(props) {
   }, [vDragging, isMobile]);
 
   const ProblemPanel = (
-    <div className={`${!isMobile ? 'h-full overflow-hidden flex flex-col border-r border-blue-200 bg-white' : 'w-full bg-white border-b border-blue-200 flex flex-col'} ${!showProblemPanel && isMobile ? 'hidden' : ''}`}>
-      <div className="flex items-center justify-between px-4 py-2 border-b bg-gray-100">
+    <div className={`${!isMobile ? 'h-full overflow-hidden flex flex-col border border-slate-200 bg-white rounded-lg' : 'w-full bg-white border-b border-slate-200 flex flex-col'} ${!showProblemPanel && isMobile ? 'hidden' : ''}`}>
+      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-slate-50">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="text-gray-600 hover:text-gray-900 p-1 rounded-md">◀</button>
-          <div className="text-sm font-semibold text-gray-800">Daily Question</div>
+          <div className="text-sm font-semibold text-slate-800">AI coding challenge</div>
         </div>
         <div className="flex items-center gap-2">
           <div className="text-xs text-gray-600">{selectedTopic || problemConfig.topic}</div>
         </div>
       </div>
 
-      <div className="flex items-center justify-between px-4 py-2 border-b bg-white">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-white">
         <ul className="flex items-center gap-4">
           <li><button onClick={() => setActiveTab('Description')} className={`text-sm font-medium pb-1 ${activeTab === 'Description' ? 'text-blue-700 border-b-2 border-blue-700' : 'text-gray-600'}`}>Description</button></li>
           {/* Editorial and Solutions tabs hidden as requested */}
@@ -505,7 +505,7 @@ function CompilerPage(props) {
   }
 
   // Main Coding Interface - OPTIMIZED HEIGHT
-  const rootClasses = 'fixed inset-0 z-[100] w-full h-screen overflow-hidden max-w-[100vw] flex flex-col bg-white';
+  const rootClasses = 'fixed inset-0 z-[100] w-full h-screen overflow-hidden max-w-[100vw] flex flex-col bg-slate-950 text-slate-950';
 
   // Show break screen between rounds
   if (showBreakScreen) {
@@ -526,19 +526,42 @@ function CompilerPage(props) {
 
   return (
     <div className={rootClasses}>
+      {!isFullInterview && (
+        <div className="border-b border-slate-800 bg-slate-950 px-5 py-3 text-white">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-cyan-500 text-sm font-bold text-slate-950">
+                AI
+              </div>
+              <div>
+                <div className="text-sm font-bold text-white">NeuroPrep compiler workspace</div>
+                <div className="text-xs text-slate-400">Run code, validate tests, and submit contest-ready solutions.</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              <span className="rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-slate-300">
+                {selectedTopic || problemConfig.topic}
+              </span>
+              <span className="rounded-md border border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 text-cyan-200">
+                Judge0 runner
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Full Interview Progress Header */}
       {isFullInterview && (
-        <div className="bg-blue-600 text-white px-6 py-3 flex items-center justify-between">
+        <div className="bg-slate-950 text-white px-6 py-3 flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-3">
             <span className="text-2xl">🎯</span>
             <div>
               <div className="font-bold">Round {currentRoundIndex + 1} of {totalRounds}</div>
-              <div className="text-blue-100 text-xs">{allRounds[currentRoundIndex]?.label}</div>
+              <div className="text-slate-400 text-xs">{allRounds[currentRoundIndex]?.label}</div>
             </div>
           </div>
           <div className="text-right">
-            <div className="text-sm text-blue-100">Full Interview Mode</div>
-            <div className="text-xs text-blue-200">{totalRounds - currentRoundIndex - 1} rounds remaining</div>
+            <div className="text-sm text-cyan-200">Full Interview Mode</div>
+            <div className="text-xs text-slate-400">{totalRounds - currentRoundIndex - 1} rounds remaining</div>
           </div>
         </div>
       )}
@@ -551,8 +574,8 @@ function CompilerPage(props) {
         {!isMobile && (
           <div
             ref={leftRef}
-            style={{ width: `${leftWidth}%`, minWidth: '340px', background: '#f8fafc', borderRight: '1px solid #e0e7ef' }}
-            className="flex-shrink-0 h-full overflow-y-auto sticky top-0 shadow-lg"
+            style={{ width: `${leftWidth}%`, minWidth: '340px', background: '#f8fafc', borderRight: '1px solid #cbd5e1' }}
+            className="flex-shrink-0 h-full overflow-y-auto sticky top-0"
           >
             <div className="p-6">
               {ProblemPanel}
@@ -566,9 +589,9 @@ function CompilerPage(props) {
           <div
             onMouseDown={startDrag}
             onTouchStart={startDrag}
-            className="w-2 cursor-col-resize bg-blue-200 hover:bg-blue-300 transition relative group"
+            className="w-2 cursor-col-resize bg-slate-800 hover:bg-cyan-700 transition relative group"
           >
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-40 bg-blue-600 mix-blend-multiply transition" />
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-40 bg-cyan-500 mix-blend-multiply transition" />
             <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 w-5 h-16 rounded-full bg-white/70 border border-blue-300 shadow flex items-center justify-center text-[10px] text-blue-600 font-medium">⇔</div>
           </div>
         )}
@@ -576,7 +599,7 @@ function CompilerPage(props) {
         {/* Right: Editor & Output */}
         <div ref={rightRef} className="flex-1 flex flex-col min-w-0 bg-white" style={{fontFamily: 'Inter, Segoe UI, Arial, sans-serif'}}> 
           {/* Language & Actions Bar */}
-          <div className="flex items-center justify-between px-4 h-12 border-b border-blue-100 bg-blue-50/60">
+          <div className="flex items-center justify-between px-4 h-12 border-b border-slate-200 bg-white">
             <div className="flex items-center gap-3">
               <select
                 value={language ? language.id : ''}

@@ -1,18 +1,15 @@
-// LOVEPERMANENT
-// AMMALOVEBLESSINGSONRECURSION
+// LOVEWITHSAIF
+// MADEWITHBLESSINGS
 
 /**
  * Agentic AI Controller
  * Conversational AI that actively guides users based on their performance
  */
 
-const axios = require('axios');
 const ChatConversation = require('../models/ChatConversation.cjs');
 const StudentPerformance = require('../models/StudentPerformance.cjs');
 const LearningMaterial = require('../models/LearningMaterial.cjs');
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_API_URL = process.env.GEMINI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+const aiProvider = require('../services/aiProviderService.cjs');
 
 const TOPICS = [
   { id: 0, name: 'Data Structures' },
@@ -147,7 +144,7 @@ exports.sendMessage = async (req, res) => {
       session.context
     );
 
-    // Call Gemini API
+    // Call configured backend AI provider
     const aiResponse = await callGeminiAPI(aiPrompt);
 
     // Add AI response to session
@@ -370,39 +367,20 @@ Respond naturally and helpfully:`;
 }
 
 /**
- * Helper: Call Gemini API
+ * Helper: Call configured backend AI provider
  */
 async function callGeminiAPI(prompt) {
   try {
-    const response = await axios.post(
-      `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
-      {
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 500,
-          topP: 0.8,
-          topK: 40
-        }
-      },
-      {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 30000
-      }
-    );
+    const response = await aiProvider.generateText(prompt, {
+      temperature: 0.7,
+      maxTokens: 500,
+      timeout: 30000
+    });
 
-    if (response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-      return response.data.candidates[0].content.parts[0].text.trim();
-    }
-
-    return "I'm here to help! Could you tell me more about what you'd like to learn?";
+    return response.text || "I'm here to help! Could you tell me more about what you'd like to learn?";
 
   } catch (error) {
-    console.error('Gemini API error:', error.response?.data || error.message);
+    console.error('AI provider error:', error.message);
     return "I'm having trouble connecting right now, but I'm still here to support your learning journey! Let me know how I can help.";
   }
 }

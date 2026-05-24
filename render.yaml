@@ -19,8 +19,18 @@ services:
           property: connectionString
       - key: GEMINI_API_URL
         value: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent
+      - key: AI_PROVIDER
+        value: gemini
+      - key: USE_OLLAMA
+        value: false
+      - key: GEMINI_MODEL
+        value: gemini-2.0-flash-001
       - key: GEMINI_API_KEY
         sync: false # Set manually in dashboard for security
+      - key: GROQ_API_KEY
+        sync: false # Set manually in dashboard for Gemini fallback
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
       - key: JWT_SECRET
         sync: false # Set manually in dashboard for security - used for admin authentication
       - key: REQUEST_TIMEOUT

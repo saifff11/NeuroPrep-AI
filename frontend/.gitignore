@@ -55,5 +55,5 @@ test-*.js
 temp/
 tmp/
 
-# Ignore backend environment file (contains secrets)
-/backend/.env
+# Environment files that can contain secrets
+.env

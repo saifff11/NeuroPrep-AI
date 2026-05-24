@@ -1,7 +1,7 @@
 // Md Saif Ali - Ollama Service for Local LLM Integration
 const axios = require('axios');
 
-const OLLAMA_API_URL = process.env.OLLAMA_API_URL || 'https://pricing-correction-agenda-criterion.trycloudflare.com';
+const OLLAMA_API_URL = process.env.OLLAMA_API_URL || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:7b';
 
 /**

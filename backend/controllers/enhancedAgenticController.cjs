@@ -1,5 +1,5 @@
-// LOVEPERMANENT
-// AMMALOVEBLESSINGSONRECURSION
+// LOVEWITHSAIF
+// MADEWITHBLESSINGS
 
 /**
  * ENHANCED AGENTIC AI CONTROLLER
@@ -10,16 +10,12 @@
 const StudentPerformance = require('../models/StudentPerformance.cjs');
 const ChatConversation = require('../models/ChatConversation.cjs');
 const LearningMaterial = require('../models/LearningMaterial.cjs');
-const axios = require('axios');
+const aiProvider = require('../services/aiProviderService.cjs');
 
 // Import AI Agents
 const PlannerAgent = require('../agents/plannerAgent.cjs');
 const ActionAgent = require('../agents/actionAgent.cjs');
 const EvaluatorAgent = require('../agents/evaluatorAgent.cjs');
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_API_URL = process.env.GEMINI_API_URL || 
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
 
 const ML_ENGINE_URL = process.env.ML_ENGINE_URL || 'http://localhost:5000';
 
@@ -474,26 +470,18 @@ function formatActionResponse(actionResult) {
 }
 
 /**
- * Call Gemini API
+ * Call configured backend AI provider
  */
 async function callGeminiAPI(message, context) {
   try {
-    const response = await axios.post(
-      `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
-      {
-        contents: [{
-          parts: [{ text: `${context}\n\nUSER MESSAGE: ${message}\n\nRESPOND:` }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 600
-        }
-      }
-    );
+    const response = await aiProvider.generateText(`${context}\n\nUSER MESSAGE: ${message}\n\nRESPOND:`, {
+      temperature: 0.7,
+      maxTokens: 600
+    });
 
-    return response.data.candidates[0].content.parts[0].text;
+    return response.text;
   } catch (error) {
-    console.error('Gemini API error:', error.message);
+    console.error('AI provider error:', error.message);
     return "I'm here to help! Let me guide you through your learning journey. What topic would you like to focus on?";
   }
 }

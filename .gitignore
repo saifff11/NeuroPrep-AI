@@ -57,3 +57,4 @@ tmp/
 
 # Ignore backend environment file (contains secrets)
 /backend/.env
+/frontend/.env

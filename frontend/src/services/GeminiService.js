@@ -6,14 +6,11 @@ import progressService from './ProgressService';
 // Md Saif AliPERMANENT - No more n8n complexity!
 
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 
-  import.meta.env.VITE_API_BASE_URL + '/api' ||
-  (process.env.NODE_ENV === 'production' 
-    ? 'https://neuroprepai.onrender.com/api'  // Render Backend URL
-    : 'http://localhost:5000/api');
-
-// Gemini API Key from .env
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const API_BASE_ROOT =
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.PROD ? 'https://neuroprepai.onrender.com' : 'http://localhost:5000');
+const API_BASE_URL = API_BASE_ROOT.endsWith('/api') ? API_BASE_ROOT : `${API_BASE_ROOT}/api`;
 
 class GeminiService {
 
@@ -134,53 +131,32 @@ class GeminiService {
   }
 
   static async getMCQQuestions(topic, difficulty = 'medium', count = 5) {
-    console.log('🎯 GeminiService: Generating MCQ Questions');
+    console.log('🎯 GeminiService: Generating MCQ Questions via backend AI provider');
     console.log(`📚 Topic: ${topic}, Difficulty: ${difficulty}, Count: ${count}`);
 
     try {
-      // Call Gemini API directly from frontend
-      const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent';
-      const GEMINI_KEY = GEMINI_API_KEY || 'AIzaSyB1-4W8tH-Eozlv_16veMff9g7z1GYDFpc';
-
-      const prompt = `Generate ${count} multiple-choice questions for ${topic} at ${difficulty} difficulty level.
-
-Each question should have:
-- A clear, specific question
-- 4 options (A, B, C, D)
-- One correct answer
-- Brief explanation
-
-Format as JSON array:
-[
-  {
-    "question": "Question text",
-    "options": ["Option A", "Option B", "Option C", "Option D"],
-    "correctAnswer": 0,
-    "explanation": "Why this is correct"
-  }
-]
-
-Return ONLY the JSON array, no markdown formatting.`;
-
-      const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_KEY}`, {
+      const response = await fetch(`${API_BASE_URL}/mcq-questions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
+          topic,
+          difficulty,
+          count
         })
       });
 
       const data = await response.json();
-      let questionsText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      questionsText = questionsText.replace(/```json/g, '').replace(/```/g, '').trim();
-      
-      const questions = JSON.parse(questionsText);
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || data.details || `HTTP ${response.status}`);
+      }
+
+      const questions = data.questions || [];
       console.log('✅ MCQ Questions Generated:', questions.length);
 
       return {
         success: true,
-        questions: questions,
-        source: 'gemini-direct'
+        questions,
+        source: data.metadata?.source || 'backend-ai'
       };
     } catch (error) {
       console.error('❌ MCQ Generation Error:', error);
@@ -211,7 +187,7 @@ Return ONLY the JSON array, no markdown formatting.`;
             type: 'face-to-face',
             expectedDuration: '2-3 minutes'
           })),
-          source: 'gemini-direct'
+          source: response.source || 'backend-ai'
         };
       } else {
         throw new Error(response.error || 'Failed to generate interview questions');
@@ -239,7 +215,6 @@ Return ONLY the JSON array, no markdown formatting.`;
 
     // Prepare request body once
     const requestBody = { topic, difficulty, language };
-    if (GEMINI_API_KEY) requestBody.geminiApiKey = GEMINI_API_KEY;
 
     let lastError = null;
     let retryAfterHeader = null;
@@ -265,7 +240,7 @@ Return ONLY the JSON array, no markdown formatting.`;
           const data = await resp.json();
           console.log('✅ Coding Problem Response:', data);
           if (data.success) {
-            return { success: true, problem: data.problem, source: 'gemini-direct' };
+            return { success: true, problem: data.problem, source: data.metadata?.source || 'backend-ai' };
           }
           // non-success payload from backend; capture and break to fallback
           lastError = new Error(data.error || 'Failed to generate problem');

@@ -1,5 +1,5 @@
-// LOVEPERMANENT
-// AMMALOVEBLESSINGSONRECURSION
+// LOVEWITHSAIF
+// MADEWITHBLESSINGS
 
 /**
  * ACTION AGENT
@@ -7,14 +7,12 @@
  * Generates content based on action type
  */
 
-const axios = require('axios');
+const aiProvider = require('../services/aiProviderService.cjs');
 const LearningMaterial = require('../models/LearningMaterial.cjs');
 
 class ActionAgent {
   constructor() {
-    this.geminiApiKey = process.env.GEMINI_API_KEY;
-    this.geminiUrl = process.env.GEMINI_API_URL || 
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+    this.aiProvider = aiProvider;
   }
 
   /**
@@ -361,23 +359,15 @@ Be structured and actionable.`;
   }
 
   /**
-   * Call Gemini API
+   * Call configured backend AI provider
    */
   async callGemini(prompt) {
-    const response = await axios.post(
-      `${this.geminiUrl}?key=${this.geminiApiKey}`,
-      {
-        contents: [{
-          parts: [{ text: prompt }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 1000
-        }
-      }
-    );
+    const response = await this.aiProvider.generateText(prompt, {
+      temperature: 0.7,
+      maxTokens: 1000
+    });
 
-    return response.data.candidates[0].content.parts[0].text;
+    return response.text;
   }
 }
 

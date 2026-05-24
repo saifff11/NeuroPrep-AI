@@ -4,6 +4,7 @@
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
+const aiProvider = require('./services/aiProviderService.cjs');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const http = require('http');
@@ -95,11 +96,18 @@ app.use(cookieParser());
 
 // Health check endpoint for Render
 app.get('/api/health', (req, res) => {
+  const aiConfig = aiProvider.getConfig();
   res.json({ 
     status: 'healthy', 
     timestamp: new Date().toISOString(),
     service: 'neuroprepai Backend',
     version: '1.0.0',
+    ai: {
+      primaryProvider: aiConfig.primaryProvider,
+      providerSequence: aiConfig.providerSequence,
+      geminiConfigured: aiProvider.isProviderConfigured('gemini'),
+      groqConfigured: aiProvider.isProviderConfigured('groq')
+    },
     corsOrigins: allowedOrigins,
     nodeEnv: process.env.NODE_ENV
   });
@@ -268,67 +276,7 @@ mongooseService.connect()
   });
 
 // Environment Configuration
-const GEMINI_API_URL = process.env.GEMINI_API_URL;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const REQUEST_TIMEOUT = parseInt(process.env.REQUEST_TIMEOUT) || 30000;
-
-// Helper: POST with retries for transient upstream errors (e.g., 429)
-const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
-async function postWithRetries(url, body, options = {}, maxAttempts = 3) {
-  let lastErr = null;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const resp = await axios.post(url, body, options);
-      return { response: resp, attempts: attempt };
-    } catch (err) {
-      lastErr = err;
-      const status = err.response?.status;
-      const retryAfter = err.response?.headers?.['retry-after'];
-
-      console.warn(`postWithRetries attempt ${attempt} failed with status ${status}`);
-      if (status === 429) {
-        // If Retry-After provided, wait that long (in seconds)
-        let waitMs = 1000 * Math.pow(2, attempt);
-        if (retryAfter) {
-          const parsed = parseInt(retryAfter, 10);
-          if (!Number.isNaN(parsed)) waitMs = parsed * 1000;
-        }
-        if (attempt < maxAttempts) {
-          console.log(`Retrying after ${waitMs}ms due to 429`);
-          await sleep(waitMs + Math.floor(Math.random() * 300));
-          continue;
-        }
-        // exhausted
-        const e = new Error(`Upstream HTTP 429: ${err.message}`);
-        e.retryAfter = retryAfter || null;
-        e.status = 429;
-        // Attach upstream body for diagnostics
-        e.upstreamBody = err.response?.data || null;
-        throw e;
-      }
-
-      // For network errors or other 5xx, apply backoff and retry
-      if (attempt < maxAttempts) {
-        const backoff = 1000 * Math.pow(2, attempt);
-        console.log(`Transient error - retrying after ${backoff}ms`);
-        await sleep(backoff + Math.floor(Math.random() * 200));
-        continue;
-      }
-
-      // Non-retriable or exhausted attempts
-      const e = new Error(err.message || 'Upstream request failed');
-      e.status = status || null;
-      e.retryAfter = retryAfter || null;
-      e.upstreamBody = err.response?.data || null;
-      throw e;
-    }
-  }
-  // Fallback throw
-  const e = new Error(lastErr?.message || 'Upstream request failed after retries');
-  e.status = lastErr?.response?.status || null;
-  e.upstreamBody = lastErr?.response?.data || null;
-  throw e;
-}
 
 // 💾 Q&A STORAGE SYSTEM
 let questionAnswerStorage = {
@@ -425,13 +373,6 @@ app.post('/api/mcq-questions', async (req, res) => {
   console.log(`🆔 Session: ${sessionId}`);
   console.log(`⏰ Timestamp: ${timestamp}`);
 
-  if (!GEMINI_API_KEY) {
-    return res.status(500).json({
-      success: false,
-      error: 'Gemini API key not configured'
-    });
-  }
-
   try {
     // Create detailed prompts based on topic and difficulty
     const getTopicSpecificPrompt = (topic, difficulty, count, sessionId) => {
@@ -521,27 +462,19 @@ CRITICAL REQUIREMENTS:
 
     const prompt = getTopicSpecificPrompt(topic, difficulty, count, sessionId);
 
-    console.log('🚀 Sending request to Gemini...');
-    const { response } = await postWithRetries(
-      `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
-      {
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }]
-      },
-      {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: REQUEST_TIMEOUT
-      }
-    );
+    console.log('🚀 Sending request to configured AI provider...');
+    const aiResult = await aiProvider.generateText(prompt, {
+      temperature: 0.7,
+      maxTokens: 4000,
+      format: 'json',
+      timeout: REQUEST_TIMEOUT
+    });
 
-    const aiResponse = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    console.log('📥 Raw Gemini Response:', aiResponse);
+    const aiResponse = aiResult.text;
+    console.log(`📥 Raw AI Response from ${aiResult.source}:`, aiResponse);
 
     if (!aiResponse) {
-      throw new Error('No response from Gemini API');
+      throw new Error('No response from AI provider');
     }
 
     // Clean and parse JSON
@@ -582,7 +515,7 @@ CRITICAL REQUIREMENTS:
         topic,
         difficulty,
         count: questions.length,
-        source: 'gemini-direct',
+        source: aiResult.source,
         generatedAt: new Date().toISOString()
       }
     });
@@ -616,13 +549,6 @@ app.post('/api/coding-problems', async (req, res) => {
   console.log('🎯 ================ CODING REQUEST ================');
   console.log(`💻 Topic: ${topic}, Difficulty: ${difficulty}, Language: ${language}`);
   console.log(`🆔 Session: ${sessionId}`);
-
-  if (!GEMINI_API_KEY) {
-    return res.status(500).json({
-      success: false,
-      error: 'Gemini API key not configured'
-    });
-  }
 
   try {
     // Create detailed coding prompts based on topic and difficulty
@@ -710,27 +636,19 @@ CRITICAL REQUIREMENTS:
 
     const prompt = getCodingPrompt(topic, difficulty, language, sessionId);
 
-    console.log('🚀 Sending request to Gemini...');
-    const { response } = await postWithRetries(
-      `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
-      {
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }]
-      },
-      {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: REQUEST_TIMEOUT
-      }
-    );
+    console.log('🚀 Sending request to configured AI provider...');
+    const aiResult = await aiProvider.generateText(prompt, {
+      temperature: 0.7,
+      maxTokens: 4000,
+      format: 'json',
+      timeout: REQUEST_TIMEOUT
+    });
 
-    const aiResponse = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    console.log('📥 Raw Gemini Response:', aiResponse);
+    const aiResponse = aiResult.text;
+    console.log(`📥 Raw AI Response from ${aiResult.source}:`, aiResponse);
 
     if (!aiResponse) {
-      throw new Error('No response from Gemini API');
+      throw new Error('No response from AI provider');
     }
 
 
@@ -748,7 +666,7 @@ CRITICAL REQUIREMENTS:
         topic,
         difficulty,
         language,
-        source: 'gemini-direct',
+        source: aiResult.source,
         generatedAt: new Date().toISOString()
       }
     });
@@ -773,9 +691,15 @@ CRITICAL REQUIREMENTS:
 
 // Health Check
 app.get('/api/health', (req, res) => {
+  const aiConfig = aiProvider.getConfig();
   res.json({
     status: 'healthy',
-    geminiConfigured: !!GEMINI_API_KEY,
+    ai: {
+      primaryProvider: aiConfig.primaryProvider,
+      providerSequence: aiConfig.providerSequence,
+      geminiConfigured: aiProvider.isProviderConfigured('gemini'),
+      groqConfigured: aiProvider.isProviderConfigured('groq')
+    },
     timestamp: new Date().toISOString()
   });
 });
@@ -894,13 +818,6 @@ app.post('/api/assess-interview', async (req, res) => {
   console.log('🎯 ============= AI INTERVIEW ASSESSMENT =============');
   console.log(`👤 User: ${userId}, Type: ${interviewType}, Topic: ${topic}`);
 
-  if (!GEMINI_API_KEY) {
-    return res.status(500).json({
-      success: false,
-      error: 'Gemini API key not configured'
-    });
-  }
-
   try {
     const assessmentPrompt = `Conduct a comprehensive interview assessment for a ${interviewType} interview on ${topic} at ${difficulty} level.
 
@@ -967,27 +884,19 @@ ASSESSMENT CRITERIA:
 
 Provide constructive, actionable feedback that helps the candidate improve their interview performance.`;
 
-    console.log('🚀 Sending assessment request to Gemini...');
-    const { response } = await postWithRetries(
-      `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
-      {
-        contents: [{
-          parts: [{
-            text: assessmentPrompt
-          }]
-        }]
-      },
-      {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: REQUEST_TIMEOUT
-      }
-    );
+    console.log('🚀 Sending assessment request to configured AI provider...');
+    const aiResult = await aiProvider.generateText(assessmentPrompt, {
+      temperature: 0.7,
+      maxTokens: 4000,
+      format: 'json',
+      timeout: REQUEST_TIMEOUT
+    });
 
-    const aiResponse = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    console.log('📥 Raw Gemini Assessment:', aiResponse);
+    const aiResponse = aiResult.text;
+    console.log(`📥 Raw AI Assessment from ${aiResult.source}:`, aiResponse);
 
     if (!aiResponse) {
-      throw new Error('No assessment response from Gemini API');
+      throw new Error('No assessment response from AI provider');
     }
 
     // Clean and parse JSON
@@ -1042,13 +951,6 @@ app.post('/api/analyze-code', async (req, res) => {
 
   console.log('🔍 ============= CODE ANALYSIS REQUEST =============');
   console.log(`💻 Language: ${language}, Session: ${sessionId}`);
-
-  if (!GEMINI_API_KEY) {
-    return res.status(500).json({
-      success: false,
-      error: 'Gemini API key not configured'
-    });
-  }
 
   try {
     const analysisPrompt = `You are an expert code reviewer and debugging assistant. Analyze the following code and provide comprehensive feedback.
@@ -1122,27 +1024,19 @@ ANALYSIS GUIDELINES:
 - Explain the reasoning behind each suggestion
 - Consider performance, readability, and maintainability`;
 
-    console.log('🚀 Sending code analysis request to Gemini...');
-    const { response } = await postWithRetries(
-      `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
-      {
-        contents: [{
-          parts: [{
-            text: analysisPrompt
-          }]
-        }]
-      },
-      {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: REQUEST_TIMEOUT
-      }
-    );
+    console.log('🚀 Sending code analysis request to configured AI provider...');
+    const aiResult = await aiProvider.generateText(analysisPrompt, {
+      temperature: 0.7,
+      maxTokens: 4000,
+      format: 'json',
+      timeout: REQUEST_TIMEOUT
+    });
 
-    const aiResponse = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    console.log('📥 Raw Gemini Code Analysis:', aiResponse);
+    const aiResponse = aiResult.text;
+    console.log(`📥 Raw AI Code Analysis from ${aiResult.source}:`, aiResponse);
 
     if (!aiResponse) {
-      throw new Error('No analysis response from Gemini API');
+      throw new Error('No analysis response from AI provider');
     }
 
     // Clean and parse JSON
@@ -1159,7 +1053,7 @@ ANALYSIS GUIDELINES:
         language,
         sessionId,
         analyzedAt: new Date().toISOString(),
-        source: 'gemini-ai'
+        source: aiResult.source
       }
     });
 

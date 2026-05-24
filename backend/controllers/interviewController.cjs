@@ -2,22 +2,16 @@
 // Handles full interview lifecycle: question generation, answer evaluation, transcript saving
 const InterviewTranscript = require('../models/InterviewTranscript.cjs');
 const StudentPerformance = require('../models/StudentPerformance.cjs');
-const ollamaService = require('../services/ollamaService.cjs');
+const aiProvider = require('../services/aiProviderService.cjs');
 const mongoose = require('mongoose');
 
-const USE_OLLAMA = process.env.USE_OLLAMA === 'true';
-
 /**
- * Generate AI response using Ollama
+ * Generate AI response using the configured backend provider.
  */
-async function generateWithOllama(prompt, options = {}) {
-  if (!USE_OLLAMA) {
-    throw new Error('Ollama is not enabled. Set USE_OLLAMA=true in .env');
-  }
-  
-  console.log('🚀 Generating with Ollama (GPU)...');
-  const response = await ollamaService.generateCompletion(prompt, options);
-  return response;
+async function generateWithAI(prompt, options = {}) {
+  const result = await aiProvider.generateText(prompt, options);
+  console.log(`AI generation completed via ${result.source}${result.fallbackUsed ? ' (fallback)' : ''}`);
+  return result;
 }
 
 /**
@@ -43,6 +37,8 @@ exports.startInterview = async (req, res) => {
       });
     }
 
+    const providerConfig = aiProvider.getConfig();
+
     // Create new interview transcript
     const sessionId = `interview_${Date.now()}_${userId}`;
     const transcript = new InterviewTranscript({
@@ -53,8 +49,8 @@ exports.startInterview = async (req, res) => {
       topic: topic || role,
       totalQuestions,
       startTime: new Date(),
-      aiModel: ollamaService.OLLAMA_MODEL,
-      aiSource: 'ollama-gpu'
+      aiModel: providerConfig.primaryModel,
+      aiSource: providerConfig.primaryProvider
     });
 
     await transcript.save();
@@ -165,18 +161,19 @@ Provide your response ONLY as JSON in this exact format:
 
 Return ONLY the JSON object, no markdown formatting, no extra text.`;
 
-    const responseText = await generateWithOllama(prompt, {
+    const questionResult = await generateWithAI(prompt, {
       temperature: 0.8,
       maxTokens: 1000,
       format: 'json' // Force JSON format
     });
+    const responseText = questionResult.text;
 
     console.log('🔍 Raw Ollama Response:', responseText.substring(0, 500));
 
     // Parse response with error handling
     let questionData;
     try {
-      questionData = ollamaService.parseJsonResponse(responseText);
+      questionData = aiProvider.parseJsonResponse(responseText);
       
       // OVERRIDE: Force category to match user's selected topic, regardless of what AI returns
       const selectedCategory = transcript.topic || 'General';
@@ -462,25 +459,27 @@ YOU MUST RETURN VALID JSON:
     let evaluation;
     try {
       const startTime = Date.now();
-      const evaluationText = await generateWithOllama(evaluationPrompt, {
+      const evaluationResult = await generateWithAI(evaluationPrompt, {
         temperature: 0.1, // Very low for strict, consistent evaluation
         maxTokens: 1500, 
         format: 'json' // Force JSON format
       });
+      const evaluationText = evaluationResult.text;
       const evaluationTime = Date.now() - startTime;
       
-      evaluation = ollamaService.parseJsonResponse(evaluationText);
+      evaluation = aiProvider.parseJsonResponse(evaluationText);
       
     } catch (jsonError) {
       
       // Fallback: try again without format enforcement
       try {
-        const retryText = await generateWithOllama(evaluationPrompt, {
+        const retryResult = await generateWithAI(evaluationPrompt, {
           temperature: 0.3,
           maxTokens: 800
         });
+        const retryText = retryResult.text;
         
-        evaluation = ollamaService.parsePlainTextToJson(retryText, 'evaluation');
+        evaluation = aiProvider.parsePlainTextToJson(retryText, 'evaluation');
         
       } catch (retryError) {
         evaluation = {
@@ -731,18 +730,19 @@ Based on the scores and feedback above, generate a JSON response with qualitativ
 
 Return ONLY valid JSON, no markdown, no code blocks.`;
 
-    console.log('📝 Sending prompt to Ollama for final report...');
-    const reportText = await generateWithOllama(reportPrompt, {
+    console.log('📝 Sending prompt to AI provider for final report...');
+    const reportResult = await generateWithAI(reportPrompt, {
       temperature: 0.6,
       maxTokens: 5000,
       format: 'json' // Force JSON format like answer evaluation
     });
+    const reportText = reportResult.text;
 
     console.log('📥 Received response from Ollama (length:', reportText.length, 'chars)');
     console.log('🔍 First 500 chars:', reportText.substring(0, 500));
     console.log('🔍 Last 500 chars:', reportText.substring(Math.max(0, reportText.length - 500)));
 
-    const report = ollamaService.parseJsonResponse(reportText);
+    const report = aiProvider.parseJsonResponse(reportText);
 
     // Combine pre-calculated scores with Ollama's qualitative analysis
     const overallScoreNum = parseFloat(avgScore);
@@ -838,7 +838,7 @@ Return ONLY valid JSON, no markdown, no code blocks.`;
         duration: transcript.totalDuration,
         completedAt: transcript.endTime
       },
-      source: 'ollama-gpu'
+      source: reportResult.source
     });
 
   } catch (error) {

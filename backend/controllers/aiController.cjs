@@ -1,53 +1,5 @@
-const axios = require('axios');
-
-const GEMINI_API_URL = process.env.GEMINI_API_URL;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const aiProvider = require('../services/aiProviderService.cjs');
 const REQUEST_TIMEOUT = parseInt(process.env.REQUEST_TIMEOUT) || 30000;
-
-const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
-async function postWithRetries(url, body, options = {}, maxAttempts = 3) {
-  let lastErr = null;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const resp = await axios.post(url, body, options);
-      return { response: resp, attempts: attempt };
-    } catch (err) {
-      lastErr = err;
-      const status = err.response?.status;
-      const retryAfter = err.response?.headers?.['retry-after'];
-      if (status === 429) {
-        let waitMs = 1000 * Math.pow(2, attempt);
-        if (retryAfter) {
-          const parsed = parseInt(retryAfter, 10);
-          if (!Number.isNaN(parsed)) waitMs = parsed * 1000;
-        }
-        if (attempt < maxAttempts) {
-          await sleep(waitMs + Math.floor(Math.random() * 300));
-          continue;
-        }
-        const e = new Error(`Upstream HTTP 429: ${err.message}`);
-        e.retryAfter = retryAfter || null;
-        e.status = 429;
-        e.upstreamBody = err.response?.data || null;
-        throw e;
-      }
-      if (attempt < maxAttempts) {
-        const backoff = 1000 * Math.pow(2, attempt);
-        await sleep(backoff + Math.floor(Math.random() * 200));
-        continue;
-      }
-      const e = new Error(err.message || 'Upstream request failed');
-      e.status = status || null;
-      e.retryAfter = retryAfter || null;
-      e.upstreamBody = err.response?.data || null;
-      throw e;
-    }
-  }
-  const e = new Error(lastErr?.message || 'Upstream request failed after retries');
-  e.status = lastErr?.response?.status || null;
-  e.upstreamBody = lastErr?.response?.data || null;
-  throw e;
-}
 
 function getTopicSpecificPrompt(topic, difficulty, count, sessionId) {
   const difficultySpecs = {
@@ -95,15 +47,14 @@ Return ONLY a JSON array with exactly ${count} questions in this exact format:
 async function mcqQuestions(req, res) {
   const { topic = 'JavaScript', difficulty = 'medium', count = 5 } = req.body;
   const sessionId = Date.now() + Math.random().toString(36).substr(2, 9);
-  if (!GEMINI_API_KEY) return res.status(500).json({ success: false, error: 'Gemini API key not configured' });
   try {
     const prompt = getTopicSpecificPrompt(topic, difficulty, count, sessionId);
-    const { response } = await postWithRetries(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, { contents: [{ parts: [{ text: prompt }] }] }, { headers: { 'Content-Type': 'application/json' }, timeout: REQUEST_TIMEOUT });
-    const aiResponse = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!aiResponse) throw new Error('No response from Gemini API');
+    const aiResult = await aiProvider.generateText(prompt, { temperature: 0.7, maxTokens: 4000, format: 'json', timeout: REQUEST_TIMEOUT });
+    const aiResponse = aiResult.text;
+    if (!aiResponse) throw new Error('No response from AI provider');
     let cleanResponse = aiResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const questions = JSON.parse(cleanResponse);
-    res.json({ success: true, questions, metadata: { topic, difficulty, count: questions.length, source: 'gemini-direct' } });
+    res.json({ success: true, questions, metadata: { topic, difficulty, count: questions.length, source: aiResult.source } });
   } catch (error) {
     const retryAfterHeader = error.retryAfter || error.upstreamBody?.retry_after || null;
     if (retryAfterHeader) res.set('Retry-After', String(retryAfterHeader));
@@ -114,15 +65,14 @@ async function mcqQuestions(req, res) {
 
 async function codingProblems(req, res) {
   const { topic = 'algorithms', difficulty = 'medium', language = 'javascript' } = req.body;
-  if (!GEMINI_API_KEY) return res.status(500).json({ success: false, error: 'Gemini API key not configured' });
   try {
     const prompt = `Generate one coding problem for topic ${topic} at ${difficulty} difficulty for ${language}. Return pure JSON object.`;
-    const { response } = await postWithRetries(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, { contents: [{ parts: [{ text: prompt }] }] }, { headers: { 'Content-Type': 'application/json' }, timeout: REQUEST_TIMEOUT });
-    const aiResponse = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!aiResponse) throw new Error('No response from Gemini API');
+    const aiResult = await aiProvider.generateText(prompt, { temperature: 0.7, maxTokens: 4000, format: 'json', timeout: REQUEST_TIMEOUT });
+    const aiResponse = aiResult.text;
+    if (!aiResponse) throw new Error('No response from AI provider');
     let cleanResponse = aiResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const problem = JSON.parse(cleanResponse);
-    res.json({ success: true, problem, metadata: { topic, difficulty, language, source: 'gemini-direct' } });
+    res.json({ success: true, problem, metadata: { topic, difficulty, language, source: aiResult.source } });
   } catch (error) {
     const retryAfterHeader = error.retryAfter || error.upstreamBody?.retry_after || null;
     if (retryAfterHeader) res.set('Retry-After', String(retryAfterHeader));
@@ -133,15 +83,14 @@ async function codingProblems(req, res) {
 
 async function analyzeCode(req, res) {
   const { code = '', language = 'javascript', problem = '' , errors = '' } = req.body;
-  if (!GEMINI_API_KEY) return res.status(500).json({ success: false, error: 'Gemini API key not configured' });
   try {
     const analysisPrompt = `Analyze code: ${language}\n${code}`;
-    const { response } = await postWithRetries(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, { contents: [{ parts: [{ text: analysisPrompt }] }] }, { headers: { 'Content-Type': 'application/json' }, timeout: REQUEST_TIMEOUT });
-    const aiResponse = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!aiResponse) throw new Error('No response from Gemini API');
+    const aiResult = await aiProvider.generateText(analysisPrompt, { temperature: 0.7, maxTokens: 4000, format: 'json', timeout: REQUEST_TIMEOUT });
+    const aiResponse = aiResult.text;
+    if (!aiResponse) throw new Error('No response from AI provider');
     let cleanResponse = aiResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const analysis = JSON.parse(cleanResponse);
-    res.json({ success: true, analysis, metadata: { language } });
+    res.json({ success: true, analysis, metadata: { language, source: aiResult.source } });
   } catch (error) {
     const retryAfterHeader = error.retryAfter || error.upstreamBody?.retry_after || null;
     if (retryAfterHeader) res.set('Retry-After', String(retryAfterHeader));
@@ -152,15 +101,14 @@ async function analyzeCode(req, res) {
 
 async function assessInterview(req, res) {
   const { userId, interviewType, topic, difficulty, duration, interviewData, userResponses, interviewQuestions } = req.body;
-  if (!GEMINI_API_KEY) return res.status(500).json({ success: false, error: 'Gemini API key not configured' });
   try {
     const assessmentPrompt = `Assess interview for ${topic} at ${difficulty}`;
-    const { response } = await postWithRetries(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, { contents: [{ parts: [{ text: assessmentPrompt }] }] }, { headers: { 'Content-Type': 'application/json' }, timeout: REQUEST_TIMEOUT });
-    const aiResponse = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!aiResponse) throw new Error('No response from Gemini API');
+    const aiResult = await aiProvider.generateText(assessmentPrompt, { temperature: 0.7, maxTokens: 4000, format: 'json', timeout: REQUEST_TIMEOUT });
+    const aiResponse = aiResult.text;
+    if (!aiResponse) throw new Error('No response from AI provider');
     let cleanResponse = aiResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const assessment = JSON.parse(cleanResponse);
-    res.json({ success: true, assessment, sessionData: { userId, interviewType, topic, difficulty, duration, timestamp: new Date() } });
+    res.json({ success: true, assessment, sessionData: { userId, interviewType, topic, difficulty, duration, source: aiResult.source, timestamp: new Date() } });
   } catch (error) {
     const retryAfterHeader = error.retryAfter || error.upstreamBody?.retry_after || null;
     if (retryAfterHeader) res.set('Retry-After', String(retryAfterHeader));

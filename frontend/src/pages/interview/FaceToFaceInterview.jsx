@@ -1077,7 +1077,7 @@ const FaceToFaceInterview = () => {
   return (
     <div 
       ref={containerRef}
-      className={`min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 ${
+      className={`saas-grid min-h-screen bg-slate-50 ${
         isFullscreen ? 'p-2' : 'p-4'
       }`}
     >
@@ -1088,29 +1088,32 @@ const FaceToFaceInterview = () => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center justify-center min-h-screen"
+            className="flex items-center justify-center min-h-screen py-10"
           >
-            <div className="bg-white rounded-2xl p-8 shadow-2xl max-w-2xl w-full border border-blue-100">
+            <div className="bg-white rounded-lg p-6 shadow-xl shadow-slate-200/70 max-w-3xl w-full border border-slate-200 sm:p-8">
               <div className="text-center mb-8">
                 <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <span className="text-4xl">🎤</span>
                 </div>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent mb-2">
+                <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-700">
+                  Face-to-face interview module
+                </div>
+                <h1 className="text-4xl font-bold text-slate-950 mb-2">
                   Face-to-Face AI Interview
                 </h1>
-                <p className="text-gray-600 text-lg mb-3">
-                  Quick 3-minute interview with AI-powered assessment
+                <p className="text-slate-600 text-lg mb-3">
+                  Quick 3-minute interview with AI-powered assessment and readiness signals.
                 </p>
                 {interviewConfig.subTopicDescription && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3 max-w-md mx-auto">
-                    <p className="text-sm text-blue-800 font-medium">{interviewConfig.subTopicDescription}</p>
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mt-3 max-w-md mx-auto">
+                    <p className="text-sm text-slate-700 font-medium">{interviewConfig.subTopicDescription}</p>
                   </div>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-6 mb-8">
-                <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
-                  <h3 className="font-semibold text-blue-900 mb-3 flex items-center">
+              <div className="grid gap-4 mb-8 md:grid-cols-2">
+                <div className="bg-slate-50 p-5 rounded-lg border border-slate-200">
+                  <h3 className="font-semibold text-slate-950 mb-3 flex items-center">
                     <span className="mr-2">📋</span> Interview Details
                   </h3>
                   <div className="space-y-3 text-sm">
@@ -1135,11 +1138,11 @@ const FaceToFaceInterview = () => {
                   </div>
                 </div>
 
-                <div className="bg-green-50 p-6 rounded-xl border border-green-200">
-                  <h3 className="font-semibold text-green-900 mb-3 flex items-center">
+                <div className="bg-slate-950 p-5 rounded-lg border border-slate-800 text-white">
+                  <h3 className="font-semibold text-white mb-3 flex items-center">
                     <span className="mr-2">✨</span> Features
                   </h3>
-                  <ul className="text-sm space-y-2 text-green-800">
+                  <ul className="text-sm space-y-2 text-slate-300">
                     <li className="flex items-center"><span className="text-green-600 mr-2">✓</span> AI-Generated Questions</li>
                     <li className="flex items-center"><span className="text-green-600 mr-2">✓</span> Face Detection</li>
                     <li className="flex items-center"><span className="text-green-600 mr-2">✓</span> Voice Recognition</li>
@@ -1149,11 +1152,11 @@ const FaceToFaceInterview = () => {
                 </div>
               </div>
 
-              <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-5 mb-6">
-                <h3 className="font-semibold text-blue-900 mb-3 flex items-center">
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 mb-6">
+                <h3 className="font-semibold text-slate-950 mb-3 flex items-center">
                   <span className="mr-2">💡</span> Instructions
                 </h3>
-                <ul className="text-sm text-blue-800 space-y-2">
+                <ul className="text-sm text-slate-700 space-y-2">
                   <li className="flex items-start">
                     <span className="mr-2 mt-0.5">•</span>
                     <span>Ensure your <strong>camera and microphone</strong> are working properly</span>
@@ -1193,7 +1196,7 @@ const FaceToFaceInterview = () => {
                         toast.success('✅ Microphone access granted! You\'re ready to start.');
                       }
                     }}
-                    className="w-full bg-blue-100 hover:bg-blue-200 text-blue-800 py-2 rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+                    className="w-full bg-white hover:bg-slate-100 text-slate-800 py-2 rounded-md font-semibold text-sm transition-colors flex items-center justify-center gap-2 border border-slate-300"
                   >
                     <span>🎤</span>
                     <span>Test Microphone Permission</span>
@@ -1205,7 +1208,7 @@ const FaceToFaceInterview = () => {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={startInterview}
-                className="shine-button w-full justify-center"
+                className="w-full inline-flex items-center justify-center gap-2 rounded-md bg-cyan-600 px-5 py-3 text-sm font-semibold text-white hover:bg-cyan-700"
               >
                 <span>Start Interview</span>
                 <svg className="shine-icon" viewBox="0 0 24 24" fill="currentColor">
@@ -1218,7 +1221,7 @@ const FaceToFaceInterview = () => {
 
         {/* Interview Phase */}
         {interviewPhase === 'interview' && (
-          <div className="grid gap-4 h-screen lg:grid-cols-2">
+          <div className="grid gap-4 min-h-screen lg:grid-cols-2">
             
             {/* Compiler Modal Popup (only when coding required) */}
             <AnimatePresence>
@@ -1229,8 +1232,8 @@ const FaceToFaceInterview = () => {
                   exit={{ opacity: 0, scale: 0.95, y: 10 }}
                   className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 bg-black/60 backdrop-blur-sm"
                 >
-                  <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden border-2 border-green-500 flex flex-col h-[85vh]">
-                    <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-4 flex justify-between items-center shadow-md">
+                  <div className="bg-white w-full max-w-4xl rounded-lg shadow-2xl overflow-hidden border border-slate-200 flex flex-col h-[85vh]">
+                    <div className="bg-slate-950 text-white p-4 flex justify-between items-center">
                       <div className="flex items-center gap-3">
                         <span className="text-3xl">💻</span>
                         <h3 className="text-xl font-bold">Code Editor</h3>
@@ -1311,11 +1314,11 @@ const FaceToFaceInterview = () => {
             </AnimatePresence>
 
             {/* AI Interviewer Side */}
-            <div className="bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col border border-blue-100">
-              <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-5 flex justify-between items-center">
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden flex flex-col border border-slate-200">
+              <div className="bg-slate-950 text-white p-5 flex justify-between items-center">
                 <div>
                   <h2 className="font-bold text-2xl">AI Interviewer</h2>
-                  <p className="opacity-95 text-sm mt-1">{interviewConfig.topic}</p>
+                  <p className="text-slate-400 text-sm mt-1">{interviewConfig.topic}</p>
                 </div>
                 <div className="text-right">
                   <div className="font-bold tabular-nums text-3xl">{formatTime(timeRemaining)}</div>
@@ -1323,7 +1326,7 @@ const FaceToFaceInterview = () => {
                 </div>
               </div>
               
-              <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-blue-50 to-white p-8">
+              <div className="flex-1 flex items-center justify-center bg-slate-50 p-8">
                 <Avatar3D 
                   textToSpeak={questions[currentQuestionIndex]?.question || ''}
                   expression={avatarExpression}
@@ -1333,7 +1336,7 @@ const FaceToFaceInterview = () => {
                 />
               </div>
 
-              <div className="bg-gray-50 border-t border-blue-100 p-5">
+              <div className="bg-white border-t border-slate-200 p-5">
                 <div className="flex justify-between items-center mb-2">
                   <span className="font-semibold text-gray-700 text-sm">
                     Q {currentQuestionIndex + 1}/{questions.length}
@@ -1355,8 +1358,8 @@ const FaceToFaceInterview = () => {
             <div className="space-y-4">
               
               {/* User Camera with Face Detection */}
-              <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-blue-100">
-                <div className="bg-gradient-to-r from-gray-700 to-gray-800 text-white flex justify-between items-center p-4">
+              <div className="bg-white rounded-lg shadow-sm overflow-hidden border border-slate-200">
+                <div className="bg-slate-900 text-white flex justify-between items-center p-4">
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold text-base">Your Camera</h3>
                     <div className="flex items-center gap-2">
@@ -1396,12 +1399,12 @@ const FaceToFaceInterview = () => {
               </div>
 
               {/* Current Question & Answer */}
-              <div className="bg-white rounded-2xl shadow-xl p-6 border border-blue-100">
+              <div className="bg-white rounded-lg shadow-sm p-6 border border-slate-200">
                 <h3 className="font-bold text-gray-800 mb-4 flex items-center text-lg">
                   <span className="text-blue-600 mr-2">❓</span>
                   Current Question:
                 </h3>
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-5 rounded-xl mb-5 border border-blue-200">
+                <div className="bg-slate-50 p-5 rounded-lg mb-5 border border-slate-200">
                   <p className="text-gray-800 font-medium leading-relaxed">
                     {questions[currentQuestionIndex]?.question || 'Loading question...'}
                   </p>
@@ -1486,7 +1489,7 @@ const FaceToFaceInterview = () => {
                   onChange={(e) => setCurrentAnswer(e.target.value)}
                   placeholder="Type your answer here, or use voice recording below..."
                   disabled={isAISpeaking}
-                  className="w-full bg-white p-4 rounded-xl mb-5 min-h-[120px] border-2 border-gray-300 focus:border-blue-500 focus:outline-none resize-none text-gray-800 leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="w-full bg-white p-4 rounded-lg mb-5 min-h-[120px] border border-slate-300 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100 resize-none text-slate-800 leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 />
 
                 <div className="grid grid-cols-2 gap-3">
@@ -1494,7 +1497,7 @@ const FaceToFaceInterview = () => {
                     <button
                       onClick={startListening}
                       disabled={isAISpeaking}
-                      className="bg-gradient-to-r from-red-600 to-red-700 text-white py-3.5 rounded-xl font-semibold hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all"
+                      className="bg-rose-600 text-white py-3.5 rounded-md font-semibold hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all"
                     >
                       <span className="text-xl">🎤</span>
                       <span>Voice Input</span>
@@ -1502,7 +1505,7 @@ const FaceToFaceInterview = () => {
                   ) : (
                     <button
                       onClick={stopListening}
-                      className="bg-gradient-to-r from-gray-600 to-gray-700 text-white py-3.5 rounded-xl font-semibold hover:shadow-lg flex items-center justify-center gap-2 transition-all"
+                      className="bg-slate-700 text-white py-3.5 rounded-md font-semibold hover:bg-slate-800 flex items-center justify-center gap-2 transition-all"
                     >
                       <span className="text-xl">⏸️</span>
                       <span>Stop Recording</span>
@@ -1512,7 +1515,7 @@ const FaceToFaceInterview = () => {
                   <button
                     onClick={submitAnswer}
                     disabled={!currentAnswer.trim() || isAISpeaking || isEvaluating}
-                    className="bg-gradient-to-r from-green-600 to-green-700 text-white py-3.5 rounded-xl font-semibold hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all relative overflow-hidden"
+                    className="bg-cyan-600 text-white py-3.5 rounded-md font-semibold hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all relative overflow-hidden"
                   >
                     {isEvaluating && (
                       <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 animate-pulse"></div>
@@ -1533,8 +1536,8 @@ const FaceToFaceInterview = () => {
                   </button>
                 </div>
 
-                <div className="mt-5 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <p className="text-center text-sm text-blue-800 font-medium">
+                <div className="mt-5 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <p className="text-center text-sm text-slate-700 font-medium">
                     💡 Pro tip: <strong>Type your answer</strong> in the text box above, or use <kbd className="px-2 py-1 bg-white rounded border border-blue-300 font-mono text-xs">Ctrl+Space</kbd> for voice recording
                   </p>
                 </div>
@@ -1550,26 +1553,26 @@ const FaceToFaceInterview = () => {
             animate={{ opacity: 1 }}
             className="flex items-center justify-center min-h-screen"
           >
-            <div className="bg-white rounded-2xl p-10 shadow-2xl max-w-2xl w-full text-center border border-blue-100">
+            <div className="bg-white rounded-lg p-10 shadow-xl shadow-slate-200/70 max-w-2xl w-full text-center border border-slate-200">
               <div className="relative inline-block mb-6">
                 <div className="animate-spin w-20 h-20 border-4 border-blue-600 border-t-transparent rounded-full"></div>
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="text-2xl">🤖</span>
                 </div>
               </div>
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent mb-4">
+              <h2 className="text-3xl font-bold text-slate-950 mb-4">
                 Generating Your Assessment...
               </h2>
               <p className="text-gray-600 text-lg mb-6">
                 Our AI is analyzing your responses and preparing a comprehensive evaluation.
               </p>
-              <div className="bg-blue-50 p-5 rounded-xl border border-blue-200">
+              <div className="bg-slate-50 p-5 rounded-lg border border-slate-200">
                 <div className="flex items-center justify-center gap-3 mb-3">
                   <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
                   <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
                   <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></div>
                 </div>
-                <p className="text-sm text-blue-800 font-medium">
+                <p className="text-sm text-slate-700 font-medium">
                   Evaluating technical knowledge, communication skills, and problem-solving approach...
                 </p>
               </div>
@@ -1584,14 +1587,14 @@ const FaceToFaceInterview = () => {
             animate={{ opacity: 1, scale: 1 }}
             className="py-8"
           >
-            <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-5xl mx-auto border border-blue-100">
+            <div className="bg-white rounded-lg shadow-xl shadow-slate-200/70 p-10 max-w-5xl mx-auto border border-slate-200">
               
               {/* Header */}
               <div className="text-center mb-10">
                 <div className="w-24 h-24 bg-gradient-to-br from-green-100 to-blue-100 rounded-full flex items-center justify-center mx-auto mb-5 shadow-lg">
                   <span className="text-5xl">🎉</span>
                 </div>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent mb-3">
+                <h1 className="text-4xl font-bold text-slate-950 mb-3">
                   Interview Completed!
                 </h1>
                 <p className="text-gray-600 text-lg">

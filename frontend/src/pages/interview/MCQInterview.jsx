@@ -8,7 +8,6 @@ import { toast } from 'react-toastify';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import OllamaService from '../../services/OllamaService';
-import GeminiService from '../../services/GeminiService';
 import { progressService } from '../../services/ProgressService';
 import RoundBreakScreen from '../../components/interview/RoundBreakScreen';
 

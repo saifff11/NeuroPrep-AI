@@ -1,451 +1,486 @@
-// Md Saif Ali
-// LOVEPERMANENT
-// AMMALOVEBLESSINGSONRECURSION
-
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React from 'react';
+import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import Logo from '../assets/Logo.jpg';
-import image from '../assets/image.png';
-import ExploreSolutions from '../components/layout/ExploreSolutions';
-import PageFeatures from '../components/layout/PageFeatures';
-import { useAuth } from "../contexts/AuthContext";
+import {
+  Activity,
+  ArrowRight,
+  BadgeCheck,
+  BarChart3,
+  BrainCircuit,
+  Building2,
+  CalendarCheck,
+  CheckCircle2,
+  ClipboardCheck,
+  Code2,
+  Gauge,
+  Layers3,
+  LineChart,
+  LockKeyhole,
+  MessageSquareText,
+  PlayCircle,
+  ShieldCheck,
+  Sparkles,
+  Users,
+  Video,
+  Workflow,
+  Zap,
+} from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
-const navLinks = [
-  { name: 'Questions', href: '#' },
-  { name: 'Practice', href: '#' },
-  { name: 'Guide', href: '#' },
+const platformStats = [
+  { label: 'Interview readiness', value: '92%', detail: '+18% this month' },
+  { label: 'AI sessions analyzed', value: '12.8K', detail: 'Across 6 tracks' },
+  { label: 'Avg. feedback latency', value: '4s', detail: 'Speech, code, and rubric' },
 ];
 
-const Home = () => {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const { user } = useAuth();
-  
-  return (
-    <div className="min-h-screen bg-white text-black font-sans relative overflow-hidden">
-      {/* Decorative corner accents for hero (responsive) */}
-      <div aria-hidden="true" className="pointer-events-none absolute -left-24 -top-16 w-44 h-44 rounded-full bg-gradient-to-br from-blue-100 to-transparent opacity-60 blur-2xl transform -rotate-12 sm:-left-32 sm:-top-24 sm:w-72 sm:h-72 sm:opacity-50"></div>
-      <div aria-hidden="true" className="pointer-events-none absolute -right-24 -bottom-12 w-52 h-52 rounded-full bg-gradient-to-tr from-blue-100 to-transparent opacity-55 blur-2xl transform rotate-12 sm:-right-40 sm:-bottom-24 sm:w-96 sm:h-96 sm:opacity-45"></div>
-      {/* HERO SECTION */}
-      <div className="flex flex-col h-auto md:h-screen md:flex-row items-center justify-between px-2 sm:px-6 md:px-16 py-10 sm:py-20 max-w-7xl mx-auto">
-        {/* TEXT */}
-        <motion.div
-          className="w-full md:w-1/2 flex flex-col items-center md:items-start text-center md:text-left"
-          initial={{ opacity: 0, x: -70 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 1, ease: 'easeOut' }}
-        >
-          <div className="mb-6">
-            <motion.div 
-              className="inline-flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-full px-4 py-2 mb-4"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-            >
-              <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
-              <span className="text-blue-700 font-semibold text-sm">@neuroprepai Platform</span>
-            </motion.div>
-          </div>
-          
-          <h1 className="text-2xl xs:text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold leading-tight mb-6">
-            <span className="text-blue-600">Master Your</span>
-            <br className="hidden md:block" />
-            <span className="bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
-              Interview Skills
-            </span>
-            <br className="hidden md:block" />
-            <span className="text-gray-800">with AI Power</span>
-          </h1>
-          
-          <p className="text-base xs:text-lg lg:text-xl text-gray-600 mt-4 mb-8 max-w-xs xs:max-w-sm sm:max-w-lg lg:max-w-xl leading-relaxed">
-            Practice with AI-powered mock interviews, get instant feedback, and access curated learning resources. 
-            {/* <span className="text-blue-600 font-semibold"> Join 10,000+ successful candidates</span> who aced their interviews.
-             */}
-             <span className="text-blue-600 font-semibold"> Join 100+ successful candidates</span> who aced their interviews.
-          </p>
+const modules = [
+  {
+    icon: Video,
+    title: 'Face-to-face AI interviews',
+    desc: 'Run realistic voice and avatar-led interview rounds with structured evaluation for every answer.',
+  },
+  {
+    icon: Code2,
+    title: 'Coding round intelligence',
+    desc: 'Combine compiler practice, submissions, and technical scoring into one candidate readiness view.',
+  },
+  {
+    icon: LineChart,
+    title: 'Performance analytics',
+    desc: 'Track confidence, accuracy, communication, speed, and topic gaps across every practice session.',
+  },
+  {
+    icon: CalendarCheck,
+    title: 'Scheduled interview ops',
+    desc: 'Create managed interview windows, monitor participation, and keep preparation workflows organized.',
+  },
+  {
+    icon: MessageSquareText,
+    title: 'AI coaching companion',
+    desc: 'Give learners targeted next steps, follow-up prompts, and explanations based on their real activity.',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Admin-grade control',
+    desc: 'Package cohorts, contests, registrations, and score review into a dependable SaaS workspace.',
+  },
+];
 
-          {/* CTA BUTTONS */}
-          <motion.div
-            className="flex flex-col sm:flex-row gap-4 mt-8"
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-          >
-            <Link
-              to={user ? '/mock-interviews' : '/Login'}
-              className="group inline-flex items-center justify-center gap-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-4 rounded-2xl transition-all duration-300 transform hover:scale-105 hover:shadow-xl"
-            >
-              <svg
-                height="20"
-                width="20"
-                viewBox="0 0 24 24"
-                className="fill-white transition-all duration-300 group-hover:scale-110"
-              >
-                <path d="M10,21.236,6.755,14.745.264,11.5,6.755,8.255,10,1.764l3.245,6.491L19.736,11.5l-6.491,3.245ZM18,21l1.5,3L21,21l3-1.5L21,18l-1.5-3L18,18l-3,1.5ZM19.333,4.667,20.5,7l1.167-2.333L24,3.5,21.667,2.333,20.5,0,19.333,2.333,17,3.5Z"></path>
-              </svg>
-              Start Free Practice
-            </Link>
-            
-            <Link
-              to="#resources"
-              className="inline-flex items-center justify-center gap-2 bg-white hover:bg-blue-50 text-blue-600 border-2 border-blue-600 font-semibold px-8 py-4 rounded-2xl transition-all duration-300 transform hover:scale-105"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-              Explore Resources
-            </Link>
-          </motion.div>
+const workflowSteps = [
+  {
+    title: 'Assess',
+    desc: 'Capture resume context, selected role, skill track, and round type before the mock starts.',
+  },
+  {
+    title: 'Simulate',
+    desc: 'Run MCQ, coding, behavioral, and face-to-face rounds with adaptive AI prompts.',
+  },
+  {
+    title: 'Coach',
+    desc: 'Turn transcript, code, and performance signals into a practical improvement plan.',
+  },
+  {
+    title: 'Operate',
+    desc: 'Let admins schedule interviews, review cohort progress, and export performance records.',
+  },
+];
 
-          {/* STATS */}
-          {/* <motion.div
-            className="flex flex-wrap gap-8 mt-12"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 }}
-          >
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">🚀</div>
-              <div className="text-sm text-gray-600">AI-Powered</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">⚡</div>
-              <div className="text-sm text-gray-600">Real-Time</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">🎯</div>
-              <div className="text-sm text-gray-600">Practice Ready</div>
-            </div>
-          </motion.div> */}
-        </motion.div>
+const plans = [
+  {
+    name: 'Starter',
+    price: 'Free',
+    audience: 'For individual learners',
+    features: ['3 AI mock interviews', 'Core question bank', 'Basic performance report'],
+  },
+  {
+    name: 'Pro',
+    price: '₹499',
+    audience: 'For serious job seekers',
+    features: ['Unlimited practice rounds', 'AI coach history', 'Coding and face-to-face feedback'],
+    featured: true,
+  },
+  {
+    name: 'Campus',
+    price: 'Custom',
+    audience: 'For colleges and teams',
+    features: ['Admin scheduling', 'Cohort analytics', 'Contest and interview exports'],
+  },
+];
 
-        {/* IMAGE */}
-        <motion.div
-          className="mt-8 xs:mt-10 md:mt-0 md:ml-10 w-full md:w-1/2 flex justify-center md:justify-end"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 1, ease: 'easeOut', delay: 0.4 }}
-        >
-          <div className="relative">
-            <motion.img
-              src={image}
-              alt="AI Interview Platform"
-              className="rounded-3xl w-[180px] xs:w-[250px] sm:w-[300px] md:w-[400px] lg:w-[500px] shadow-2xl border border-blue-100"
-              whileHover={{ scale: 1.03 }}
-            />
-            {/* Floating elements */}
-            <motion.div
-              className="absolute -top-4 -right-4 bg-blue-600 text-white p-3 rounded-xl shadow-lg"
-              animate={{ y: [-10, 10, -10] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            >
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-              </svg>
-            </motion.div>
-          </div>
-        </motion.div>
+const faqs = [
+  {
+    question: 'Can NeuroPrep AI support multiple interview types?',
+    answer: 'Yes. The product is designed around technical, MCQ, behavioral, coding, and face-to-face interview flows.',
+  },
+  {
+    question: 'Is this built for individuals or institutions?',
+    answer: 'Both. Learners get guided practice, while admins can schedule interviews, manage contests, and review performance.',
+  },
+  {
+    question: 'What makes it feel like a SaaS product?',
+    answer: 'The experience now emphasizes dashboards, plans, workflow modules, analytics, admin controls, and clear conversion paths.',
+  },
+];
+
+const MotionLink = motion(Link);
+
+const SectionHeading = ({ eyebrow, title, copy }) => (
+  <div className="mx-auto mb-10 max-w-3xl text-center">
+    <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-700">
+      <Sparkles className="h-4 w-4" aria-hidden="true" />
+      {eyebrow}
+    </div>
+    <h2 className="text-3xl font-bold tracking-normal text-slate-950 sm:text-4xl">{title}</h2>
+    <p className="mt-4 text-base leading-7 text-slate-600 sm:text-lg">{copy}</p>
+  </div>
+);
+
+const ProductConsole = () => (
+  <motion.div
+    className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl shadow-slate-200/70"
+    initial={{ opacity: 0, y: 26 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.7, delay: 0.15 }}
+  >
+    <div className="flex items-center justify-between border-b border-slate-200 bg-slate-950 px-5 py-4 text-white">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-widest text-cyan-300">Command center</p>
+        <h3 className="mt-1 text-lg font-semibold text-white">Readiness workspace</h3>
       </div>
-      
-      {/* COMPANY LOGOS SECTION */}
-      {/* <section className="py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            className="text-center mb-12"
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-          >
-            <p className="text-gray-600 text-lg mb-8">Trusted by candidates from top companies worldwide</p>
-            <div className="flex flex-wrap justify-center items-center gap-8 lg:gap-12 opacity-60">
-              {['Google', 'Microsoft', 'Amazon', 'Meta', 'Netflix', 'Apple'].map((company, idx) => (
-                <motion.div
-                  key={company}
-                  className="text-2xl font-bold text-gray-400"
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 0.6, y: 0 }}
-                  transition={{ duration: 0.6, delay: idx * 0.1 }}
-                  viewport={{ once: true }}
-                >
-                  {company}
-                </motion.div>
+      <div className="flex items-center gap-2 rounded-md border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-200">
+        <Activity className="h-4 w-4" aria-hidden="true" />
+        Live AI
+      </div>
+    </div>
+
+    <div className="grid min-h-[520px] grid-cols-1 lg:grid-cols-[150px_1fr]">
+      <aside className="border-b border-slate-200 bg-slate-50 p-4 lg:border-b-0 lg:border-r">
+        <div className="space-y-2 text-sm">
+          {[
+            { icon: Gauge, label: 'Overview', active: true },
+            { icon: Video, label: 'Rounds' },
+            { icon: BarChart3, label: 'Reports' },
+            { icon: Users, label: 'Cohorts' },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <div
+                key={item.label}
+                className={`flex items-center gap-2 rounded-md px-3 py-2 ${
+                  item.active ? 'bg-slate-950 text-white' : 'text-slate-600'
+                }`}
+              >
+                <Icon className="h-4 w-4" aria-hidden="true" />
+                <span className="font-medium">{item.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </aside>
+
+      <div className="p-5">
+        <div className="grid gap-4 md:grid-cols-3">
+          {platformStats.map((stat) => (
+            <div key={stat.label} className="rounded-lg border border-slate-200 bg-white p-4">
+              <p className="text-sm text-slate-500">{stat.label}</p>
+              <div className="mt-3 flex items-end justify-between gap-3">
+                <span className="text-2xl font-bold text-slate-950">{stat.value}</span>
+                <span className="text-xs font-semibold text-emerald-700">{stat.detail}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_220px]">
+          <div className="rounded-lg border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-950">Active interview pipeline</p>
+                <p className="text-xs text-slate-500">AI-guided rounds for this week</p>
+              </div>
+              <BadgeCheck className="h-5 w-5 text-teal-600" aria-hidden="true" />
+            </div>
+            <div className="divide-y divide-slate-100">
+              {[
+                { name: 'Technical coding', score: 86, color: 'bg-cyan-500' },
+                { name: 'Behavioral depth', score: 74, color: 'bg-amber-500' },
+                { name: 'System design', score: 69, color: 'bg-rose-500' },
+              ].map((round) => (
+                <div key={round.name} className="px-4 py-4">
+                  <div className="mb-2 flex items-center justify-between text-sm">
+                    <span className="font-medium text-slate-700">{round.name}</span>
+                    <span className="font-semibold text-slate-950">{round.score}%</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-md bg-slate-100">
+                    <div className={`h-full ${round.color}`} style={{ width: `${round.score}%` }} />
+                  </div>
+                </div>
               ))}
             </div>
-          </motion.div>
-        </div>
-      </section> */}
+          </div>
 
-      {/* TESTIMONIALS SECTION */}
-      {/* <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            className="text-center mb-16"
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              Success Stories from Our Community
-            </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Hear from candidates who landed their dream jobs using @neuroprepai
+          <div className="rounded-lg border border-slate-200 bg-slate-950 p-4 text-white">
+            <div className="mb-5 flex items-center gap-2">
+              <BrainCircuit className="h-5 w-5 text-cyan-300" aria-hidden="true" />
+              <p className="font-semibold text-white">AI next action</p>
+            </div>
+            <p className="text-sm leading-6 text-slate-300">
+              Schedule one system design drill and review communication pacing before the next live round.
             </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              {
-                name: "Sarah Chen",
-                role: "Software Engineer at Google",
-                image: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face",
-                quote: "The AI mock interviews helped me practice behavioral questions. Got my Google offer in 3 weeks!",
-                rating: 5
-              },
-              {
-                name: "Raj Patel",
-                role: "Product Manager at Microsoft", 
-                image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
-                quote: "Amazing platform! The system design practice was exactly what I needed for my Microsoft interview.",
-                rating: 5
-              },
-              {
-                name: "Emily Rodriguez",
-                role: "Data Scientist at Netflix",
-                image: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face", 
-                quote: "Boosted my confidence tremendously. The feedback feature is incredibly detailed and helpful.",
-                rating: 5
-              }
-            ].map((testimonial, idx) => (
-              <motion.div
-                key={idx}
-                className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300"
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: idx * 0.2 }}
-                viewport={{ once: true }}
-              >
-                <div className="flex items-center mb-4">
-                  {[...Array(testimonial.rating)].map((_, i) => (
-                    <svg key={i} className="w-5 h-5 text-yellow-400 fill-current" viewBox="0 0 20 20">
-                      <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"/>
-                    </svg>
-                  ))}
-                </div>
-                <p className="text-gray-600 mb-6 leading-relaxed">"{testimonial.quote}"</p>
-                <div className="flex items-center">
-                  <img
-                    src={testimonial.image}
-                    alt={testimonial.name}
-                    className="w-12 h-12 rounded-full mr-4 object-cover"
-                  />
-                  <div>
-                    <h4 className="font-semibold text-gray-900">{testimonial.name}</h4>
-                    <p className="text-sm text-blue-600">{testimonial.role}</p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+            <div className="mt-5 rounded-md bg-white/10 p-3">
+              <p className="text-xs uppercase tracking-widest text-cyan-200">Confidence lift</p>
+              <p className="mt-2 text-2xl font-bold text-white">+21%</p>
+            </div>
           </div>
         </div>
-      </section> */}
 
-      {/* INTERACTIVE DEMO SECTION */}
-      {/* <section className="py-20 bg-gradient-to-br from-blue-50 to-blue-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col lg:flex-row items-center gap-12">
-            <motion.div
-              className="lg:w-1/2"
-              initial={{ opacity: 0, x: -30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8 }}
-              viewport={{ once: true }}
-            >
-              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-6">
-                See It In Action
-              </h2>
-              <p className="text-lg text-gray-600 mb-8">
-                Experience how our AI-powered interview simulator works. Get real-time feedback and improve your performance instantly.
-              </p>
-              <div className="space-y-4">
-                {[
-                  "🎯 Real-time AI feedback on your answers",
-                  "📊 Performance analytics and scoring",
-                  "🗣️ Speech pattern analysis and suggestions",
-                  "💡 Personalized improvement recommendations"
-                ].map((feature, idx) => (
-                  <motion.div
-                    key={idx}
-                    className="flex items-center gap-3"
-                    initial={{ opacity: 0, x: -20 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.6, delay: idx * 0.1 }}
-                    viewport={{ once: true }}
-                  >
-                    <span className="text-lg">{feature}</span>
-                  </motion.div>
-                ))}
-              </div>
-              <Link
-                to="/mock-interviews"
-                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-4 rounded-2xl mt-8 transition-all duration-300 transform hover:scale-105"
-              >
-                Try Demo Interview
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m6-6a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </Link>
-            </motion.div>
-            
-            <motion.div
-              className="lg:w-1/2"
-              initial={{ opacity: 0, x: 30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8 }}
-              viewport={{ once: true }}
-            >
-              <div className="relative">
-                <div className="bg-white rounded-2xl p-6 shadow-2xl">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                    <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <p className="text-blue-900 font-medium">AI Interviewer:</p>
-                      <p className="text-blue-800">"Tell me about a challenging project you worked on."</p>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <p className="text-gray-700">🎤 Recording your response...</p>
-                      <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                        <motion.div
-                          className="bg-blue-600 h-2 rounded-full"
-                          initial={{ width: "0%" }}
-                          animate={{ width: "70%" }}
-                          transition={{ duration: 2, repeat: Infinity }}
-                        ></motion.div>
-                      </div>
-                    </div>
-                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                      <p className="text-green-900 font-medium">✅ AI Feedback:</p>
-                      <p className="text-green-800 text-sm">Great structure! Consider adding more specific metrics.</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
+        <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-950">Today&apos;s coaching queue</p>
+              <p className="text-xs text-slate-500">Generated from transcripts, submissions, and admin schedules</p>
+            </div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-teal-700">
+              <Zap className="h-4 w-4" aria-hidden="true" />
+              6 recommendations ready
+            </div>
           </div>
         </div>
-      </section> */}
-
-      {/* PROFESSIONAL RESOURCES SECTION */}
-      <div id="resources">
-        <ExploreSolutions />
       </div>
-      
-      <PageFeatures/>
+    </div>
+  </motion.div>
+);
 
+const Home = () => {
+  const { user } = useAuth();
+  const primaryPath = user ? '/dashboard' : '/register';
 
-      {/* FAQ SECTION - Professional UI */}
-      <section className="py-20 bg-gradient-to-br from-blue-50 via-white to-blue-50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-950">
+      <section className="saas-grid border-b border-slate-200 bg-[#f7f9fc]">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[0.86fr_1.14fr] lg:px-8 lg:py-16">
           <motion.div
-            className="text-center mb-16"
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
+            className="flex flex-col justify-center"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.65 }}
           >
-            <h2 className="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-blue-800 mb-4">
-              Frequently Asked Questions
-            </h2>
-            <p className="text-lg text-blue-700 font-medium">
-              Everything you need to know about <span className="font-bold">@neuroprepai</span>
+            <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-700">
+              <BrainCircuit className="h-4 w-4" aria-hidden="true" />
+              AI SaaS product design
+            </div>
+            <h1 className="text-4xl font-bold tracking-normal text-slate-950 sm:text-5xl lg:text-6xl">
+              NeuroPrep AI
+            </h1>
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
+              An interview intelligence platform for learners, colleges, and hiring-prep teams. Run AI mock interviews,
+              analyze performance, schedule cohorts, and turn every practice session into a measurable readiness plan.
             </p>
+
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <MotionLink
+                to={primaryPath}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-300 hover:bg-slate-800"
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                {user ? 'Open dashboard' : 'Start free'}
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </MotionLink>
+              <MotionLink
+                to="/mock-interviews"
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 hover:border-cyan-300 hover:text-cyan-700"
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <PlayCircle className="h-4 w-4" aria-hidden="true" />
+                Preview practice
+              </MotionLink>
+            </div>
+
+            <div className="mt-10 grid gap-3 sm:grid-cols-3">
+              {[
+                { icon: ClipboardCheck, label: 'Rubric scoring' },
+                { icon: LockKeyhole, label: 'Role-based auth' },
+                { icon: Building2, label: 'Campus ready' },
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.label} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-700">
+                    <Icon className="h-4 w-4 text-teal-600" aria-hidden="true" />
+                    {item.label}
+                  </div>
+                );
+              })}
+            </div>
           </motion.div>
 
-          <div className="space-y-8">
-            {[
-              {
-                question: "How does the AI interviewer work?",
-                answer: "Our AI uses advanced natural language processing to conduct realistic interviews. It asks relevant questions based on your field and provides instant feedback on your responses, body language, and communication skills."
-              },
-              {
-                question: "Is it really free to start?",
-                answer: "Yes! You can start with our free tier that includes 3 mock interviews per month, basic feedback, and access to our question bank. Upgrade anytime for unlimited access and advanced features."
-              },
-              {
-                question: "What types of interviews can I practice?",
-                answer: "We support technical coding interviews, system design, behavioral questions, case studies, and industry-specific scenarios for roles in tech, finance, consulting, and more."
-              },
-              {
-                question: "How accurate is the AI feedback?",
-                answer: "Our AI is trained on thousands of successful interview patterns and provides 95% accuracy in feedback. It's constantly learning and improving from user interactions and expert input."
-              }
-            ].map((faq, idx) => (
+          <ProductConsole />
+        </div>
+      </section>
+
+      <section className="border-b border-slate-200 bg-white py-8">
+        <div className="mx-auto grid max-w-7xl gap-4 px-4 sm:px-6 md:grid-cols-3 lg:px-8">
+          {platformStats.map((stat) => (
+            <div key={stat.label} className="flex items-center justify-between rounded-lg border border-slate-200 px-5 py-4">
+              <div>
+                <p className="text-sm font-medium text-slate-500">{stat.label}</p>
+                <p className="mt-1 text-2xl font-bold text-slate-950">{stat.value}</p>
+              </div>
+              <span className="text-sm font-semibold text-teal-700">{stat.detail}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="bg-slate-50 py-16 sm:py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <SectionHeading
+            eyebrow="Product modules"
+            title="A SaaS workspace for the whole interview journey"
+            copy="NeuroPrep AI now reads as a product system: practice flows, AI intelligence, admin operations, and performance reporting all sit in one coherent experience."
+          />
+
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {modules.map((module, idx) => {
+              const Icon = module.icon;
+              return (
+                <motion.div
+                  key={module.title}
+                  className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
+                  initial={{ opacity: 0, y: 18 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45, delay: idx * 0.05 }}
+                  viewport={{ once: true }}
+                >
+                  <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-md bg-slate-950 text-white">
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-950">{module.title}</h3>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">{module.desc}</p>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-white py-16 sm:py-20">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
+          <div>
+            <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">
+              <Workflow className="h-4 w-4" aria-hidden="true" />
+              AI workflow
+            </div>
+            <h2 className="text-3xl font-bold text-slate-950 sm:text-4xl">
+              From raw practice to measurable readiness.
+            </h2>
+            <p className="mt-4 text-base leading-7 text-slate-600">
+              The SaaS design is built around a repeatable loop that makes the product feel operational, not just informational.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {workflowSteps.map((step, idx) => (
               <motion.div
-                key={idx}
-                className="bg-white rounded-3xl p-8 shadow-xl border-2 border-blue-100 hover:border-blue-300 transition-all duration-300"
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: idx * 0.1 }}
+                key={step.title}
+                className="rounded-lg border border-slate-200 bg-slate-50 p-6"
+                initial={{ opacity: 0, x: 18 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.45, delay: idx * 0.06 }}
                 viewport={{ once: true }}
               >
-                <h3 className="text-xl font-bold text-blue-700 mb-3 flex items-center gap-2">
-                  <span className="w-3 h-3 bg-blue-600 rounded-full"></span>
-                  {faq.question}
-                </h3>
-                <p className="text-gray-700 leading-relaxed text-base">{faq.answer}</p>
+                <div className="mb-4 flex items-center gap-3">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-md bg-cyan-600 text-sm font-bold text-white">
+                    {idx + 1}
+                  </span>
+                  <h3 className="text-lg font-bold text-slate-950">{step.title}</h3>
+                </div>
+                <p className="text-sm leading-6 text-slate-600">{step.desc}</p>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* FOOTER - Modern Newsletter Signup */}
-      <footer className="mt-20">
-        <motion.div
-          className="max-w-5xl mx-auto bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 rounded-3xl p-10 sm:p-14 text-white relative overflow-hidden shadow-2xl"
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.3 }}
-          viewport={{ once: true }}
-        >
-          {/* Decorative Circles - less opacity for better text contrast */}
-          <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
-            <div className="absolute top-10 left-10 w-24 h-24 bg-white opacity-5 rounded-full animate-pulse"></div>
-            <div className="absolute bottom-10 right-10 w-40 h-40 bg-white opacity-5 rounded-full animate-bounce"></div>
-          </div>
-          <div className="relative z-10 text-center">
-            <h3 className="text-3xl sm:text-4xl font-extrabold mb-4 tracking-tight text-white drop-shadow-lg">Stay Updated with Interview Tips</h3>
-            <p className="mb-8 text-lg max-w-2xl mx-auto text-white/90 drop-shadow">Get weekly insights, new questions, and success strategies delivered to your inbox</p>
-            <form className="flex flex-col sm:flex-row gap-4 justify-center items-center max-w-xl mx-auto">
-              <input
-                type="email"
-                placeholder="Enter your email"
-                className="w-full sm:w-72 px-6 py-4 rounded-2xl text-blue-800 placeholder-white/80 focus:outline-none focus:ring-2 focus:ring-white/70 border-2 border-white/30 bg-white bg-opacity-90 shadow-md text-lg font-medium transition-all duration-200"
-                required
-                style={{'::placeholder': {color: '#fff'}}}
-              />
-              <button
-                type="submit"
-                className="px-8 py-4 rounded-2xl bg-white text-blue-700 font-semibold text-lg shadow-lg hover:bg-blue-50 hover:text-blue-800 transition-all duration-200"
-              >
-                Subscribe
-              </button>
-            </form>
-             
-          </div>
-        </motion.div>
-      </footer>
+      <section className="border-y border-slate-200 bg-slate-950 py-16 text-white sm:py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr]">
+            <div>
+              <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-white/15 bg-white/10 px-3 py-2 text-sm font-semibold text-cyan-200">
+                <Layers3 className="h-4 w-4" aria-hidden="true" />
+                Product tiers
+              </div>
+              <h2 className="text-3xl font-bold text-white sm:text-4xl">Pricing structure that feels ready for SaaS.</h2>
+              <p className="mt-4 text-base leading-7 text-slate-300">
+                Clear tiers make the product easy to understand for learners, power users, and campus-level buyers.
+              </p>
+            </div>
 
-      
-      
+            <div className="grid gap-4 md:grid-cols-3">
+              {plans.map((plan) => (
+                <div
+                  key={plan.name}
+                  className={`rounded-lg border p-6 ${
+                    plan.featured
+                      ? 'border-cyan-300 bg-cyan-300 text-slate-950'
+                      : 'border-white/15 bg-white/5 text-white'
+                  }`}
+                >
+                  <p className={`text-sm font-semibold ${plan.featured ? 'text-cyan-900' : 'text-cyan-200'}`}>{plan.name}</p>
+                  <p className="mt-3 text-3xl font-bold">{plan.price}</p>
+                  <p className={`mt-2 text-sm ${plan.featured ? 'text-slate-700' : 'text-slate-300'}`}>{plan.audience}</p>
+                  <div className="mt-6 space-y-3">
+                    {plan.features.map((feature) => (
+                      <div key={feature} className="flex items-start gap-2 text-sm">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 flex-none" aria-hidden="true" />
+                        <span>{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-slate-50 py-16 sm:py-20">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+          <SectionHeading
+            eyebrow="Buyer clarity"
+            title="Designed to explain, convert, and scale"
+            copy="The redesigned surface presents NeuroPrep AI as a serious AI SaaS platform while preserving the learning and interview features already in the project."
+          />
+
+          <div className="grid gap-4 md:grid-cols-3">
+            {faqs.map((faq) => (
+              <div key={faq.question} className="rounded-lg border border-slate-200 bg-white p-6">
+                <h3 className="text-base font-bold text-slate-950">{faq.question}</h3>
+                <p className="mt-3 text-sm leading-6 text-slate-600">{faq.answer}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-10 rounded-lg border border-slate-200 bg-white p-6 sm:flex sm:items-center sm:justify-between sm:gap-6">
+            <div>
+              <p className="text-lg font-bold text-slate-950">Ready to launch the new product experience?</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Start with the learner dashboard or jump into a mock interview to see the SaaS flow in action.
+              </p>
+            </div>
+            <Link
+              to={primaryPath}
+              className="mt-5 inline-flex items-center justify-center gap-2 rounded-md bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800 sm:mt-0"
+            >
+              Continue
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </div>
+        </div>
+      </section>
     </div>
   );
 };
- 
 
 export default Home;

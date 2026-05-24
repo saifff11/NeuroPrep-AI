@@ -51,9 +51,22 @@ function AppContent() {
   const location = useLocation();
 
   const hideNavbar = false; // All pages now show navbar
+  const fullBleedRoutes = ['/', '/Login', '/login', '/register'];
+  const fullBleedPrefixes = [
+    '/practice',
+    '/mock-interviews',
+    '/preparation',
+    '/interview-preparation',
+    '/interview-prepration',
+    '/contests',
+    '/compiler',
+    '/face-to-face-interview',
+  ];
+  const isFullBleedRoute = fullBleedRoutes.includes(location.pathname)
+    || fullBleedPrefixes.some((prefix) => location.pathname.startsWith(prefix));
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
+    <div className="min-h-screen flex flex-col bg-slate-50">
       <ToastContainer
         position="top-right"
         autoClose={5000}
@@ -80,7 +93,13 @@ function AppContent() {
         }}
       />
       {!hideNavbar && <Navbar />}
-      <main className="flex-1 w-full mx-auto px-2 sm:px-4 md:px-8 lg:px-16 xl:px-32 max-w-screen-2xl bg-white">
+      <main
+        className={
+          isFullBleedRoute
+            ? 'flex-1 w-full bg-slate-50'
+            : 'flex-1 w-full mx-auto px-2 sm:px-4 md:px-8 lg:px-16 xl:px-32 max-w-screen-2xl bg-white'
+        }
+      >
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/practice" element={<MockInterviews />} />
@@ -91,6 +110,9 @@ function AppContent() {
           <Route path="/preparation" element={<InterviewPreparation />} />
           <Route path="/preparation/:category" element={<InterviewPreparation />} />
           <Route path="/interview-preparation" element={<InterviewPreparation />} />
+          <Route path="/interview-preparation/:category" element={<InterviewPreparation />} />
+          <Route path="/interview-prepration" element={<InterviewPreparation />} />
+          <Route path="/interview-prepration/:category" element={<InterviewPreparation />} />
 
           {/* ✅ Protected Routes */}
           <Route path="/compiler" element={<ProtectedRoute><Compiler /></ProtectedRoute>} />
