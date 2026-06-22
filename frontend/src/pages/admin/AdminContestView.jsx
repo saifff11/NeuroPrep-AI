@@ -10,7 +10,6 @@ const AdminContestView = () => {
   const navigate = useNavigate();
   const [contest, setContest] = useState(null);
   const [registrations, setRegistrations] = useState([]);
-  const [activeParticipants, setActiveParticipants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalRegistrations: 0,
@@ -23,7 +22,6 @@ const AdminContestView = () => {
 
   useEffect(() => {
     loadContestData();
-    // Simulate active participants tracking (you can integrate socket.io later)
     const interval = setInterval(loadActiveParticipants, 5000);
     return () => clearInterval(interval);
   }, [contestId]);
@@ -40,10 +38,11 @@ const AdminContestView = () => {
       setRegistrations(registrationsRes.data.data || []);
       setStats({
         totalRegistrations: registrationsRes.data.data?.length || 0,
-        activeNow: 0, // Will be updated by socket
+        activeNow: 0,
         problemsCount: contestRes.data.data?.problems?.length || 0,
-        submissions: 0 // Will be fetched from submissions
+        submissions: 0
       });
+      loadActiveParticipants();
     } catch (error) {
       console.error('Error loading contest data:', error);
       toast.error('Failed to load contest details');
@@ -53,9 +52,13 @@ const AdminContestView = () => {
   };
 
   const loadActiveParticipants = async () => {
-    // Simulate active participants (replace with actual socket.io integration)
-    const mockActive = Math.floor(Math.random() * (registrations.length + 1));
-    setStats(prev => ({ ...prev, activeNow: mockActive }));
+    try {
+      const response = await axios.get(`${API_BASE}/api/contests/${contestId}/active-count`, { withCredentials: true });
+      const activeNow = response.data?.activeCount ?? response.data?.data?.count ?? 0;
+      setStats(prev => ({ ...prev, activeNow }));
+    } catch (error) {
+      console.error('Error loading active participants:', error);
+    }
   };
 
   if (loading) {
@@ -128,7 +131,7 @@ const AdminContestView = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6">
             <div className="bg-blue-50 rounded-xl p-4 border-2 border-blue-200">
               <div className="text-sm text-blue-600 font-medium mb-1">Start Time</div>
               <div className="text-gray-800 font-bold">
@@ -148,6 +151,10 @@ const AdminContestView = () => {
             <div className="bg-blue-50 rounded-xl p-4 border-2 border-blue-200">
               <div className="text-sm text-blue-600 font-medium mb-1">Problems</div>
               <div className="text-blue-600 font-bold text-2xl">{stats.problemsCount}</div>
+            </div>
+            <div className="bg-green-50 rounded-xl p-4 border-2 border-green-200">
+              <div className="text-sm text-green-700 font-medium mb-1">Active Now</div>
+              <div className="text-green-700 font-bold text-2xl">{stats.activeNow}</div>
             </div>
           </div>
         </div>
@@ -190,14 +197,9 @@ const AdminContestView = () => {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {Math.random() > 0.5 && (
-                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-semibold flex items-center gap-1">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                      Active
-                    </span>
-                  )}
-                </div>
+                <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold">
+                  Registered
+                </span>
               </motion.div>
             ))}
           </div>

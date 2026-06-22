@@ -75,7 +75,12 @@ export default function InterviewPreparation() {
       case ROUND_MODES.CODING: return '/compiler';
       case ROUND_MODES.PERSON: return '/face-to-face-interview';
       case ROUND_MODES.MCQ: return '/mcq-interview';
-      default: return '/mcq-interview';
+      case ROUND_MODES.CASE:
+      case ROUND_MODES.SCENARIO:
+      case ROUND_MODES.PITCH:
+      case ROUND_MODES.ANALYSIS:
+      default:
+        return '/face-to-face-interview';
     }
   };
 
@@ -85,7 +90,21 @@ export default function InterviewPreparation() {
       navigate(modeRoute(firstRound.mode), {
         state: {
           trackKey: selectedRoleKey,
+          trackTitle: selectedTrack?.title,
+          trackGroup: firstRound.trackGroup,
+          roundId: firstRound.id,
+          roundLabel: firstRound.label,
+          roundStage: firstRound.stage,
           roundNumber: firstRound.number,
+          mode: firstRound.mode,
+          topic: selectedTrack?.title,
+          subject: firstRound.label,
+          jobRole: selectedTrack?.title,
+          difficulty: firstRound.difficultyProfile?.includes('hard') ? 'hard' : 'medium',
+          isFullInterview: true,
+          allRounds: implementedRounds,
+          currentRoundIndex: 0,
+          totalRounds: implementedRounds.length,
         },
       });
     }
@@ -107,7 +126,7 @@ export default function InterviewPreparation() {
         whileHover={{ y: -4 }}
         whileTap={{ scale: 0.98 }}
         onClick={() => setSelectedRoleKey(track.key)}
-        className="group overflow-hidden rounded-lg border border-slate-200 bg-white text-left shadow-sm transition hover:border-cyan-300 hover:shadow-lg"
+        className="group np-card overflow-hidden text-left transition hover:-translate-y-1 hover:border-cyan-300 hover:shadow-lg"
       >
         <div className="relative h-44 overflow-hidden bg-slate-200">
           <img
@@ -153,7 +172,7 @@ export default function InterviewPreparation() {
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
-        className={`rounded-lg border p-5 shadow-sm ${isImplemented ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-100 opacity-70'}`}
+        className={`rounded-lg border p-5 shadow-sm ${isImplemented ? 'np-card' : 'border-slate-200 bg-slate-100 opacity-70'}`}
       >
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -175,8 +194,8 @@ export default function InterviewPreparation() {
   };
 
   return (
-    <div className="saas-grid min-h-screen bg-slate-50 text-slate-950">
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+    <div className="np-page saas-grid">
+      <div className="np-container py-10">
         {!category && !selectedRoleKey && (
           <ChooseYourPath
             onSelectTrack={(trackType) => {
@@ -188,19 +207,19 @@ export default function InterviewPreparation() {
 
         {category && !selectedRoleKey && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <div className="mb-8 rounded-lg border border-slate-200 bg-white p-6 shadow-sm lg:flex lg:items-end lg:justify-between lg:gap-8">
+            <div className="np-card-ink mb-8 p-6 lg:flex lg:items-end lg:justify-between lg:gap-8">
               <div>
-                <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-700">
+                <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-sm font-semibold text-cyan-100">
                   <Sparkles className="h-4 w-4" aria-hidden="true" />
                   {currentCopy.eyebrow}
                 </div>
-                <h1 className="max-w-3xl text-3xl font-bold text-slate-950 sm:text-4xl">{currentCopy.title}</h1>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">{currentCopy.copy}</p>
+                <h1 className="max-w-3xl text-3xl font-bold text-white sm:text-4xl">{currentCopy.title}</h1>
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300 sm:text-base">{currentCopy.copy}</p>
               </div>
               <button
                 type="button"
                 onClick={() => navigate('/preparation')}
-                className="mt-5 inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-cyan-300 hover:text-cyan-700 lg:mt-0"
+                className="np-button-secondary mt-5 lg:mt-0"
               >
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 Change path
@@ -217,7 +236,7 @@ export default function InterviewPreparation() {
 
         {selectedRoleKey && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="np-card p-6">
               <div className="flex flex-wrap items-start justify-between gap-5">
                 <div>
                   <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-700">
@@ -233,7 +252,7 @@ export default function InterviewPreparation() {
                   <button
                     type="button"
                     onClick={() => setSelectedRoleKey(null)}
-                    className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-cyan-300 hover:text-cyan-700"
+                    className="np-button-secondary"
                   >
                     <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                     Roles
@@ -241,7 +260,7 @@ export default function InterviewPreparation() {
                   <button
                     type="button"
                     onClick={() => { setSelectedRoleKey(null); setCategory(null); }}
-                    className="inline-flex items-center gap-2 rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                    className="np-button-primary"
                   >
                     Change category
                   </button>
@@ -250,7 +269,7 @@ export default function InterviewPreparation() {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
-              <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="np-card p-6">
                 <div className="mb-6 flex items-center justify-between gap-4">
                   <div>
                     <h2 className="text-xl font-bold text-slate-950">Launch full interview</h2>
@@ -267,7 +286,7 @@ export default function InterviewPreparation() {
                   ].map((item) => {
                     const Icon = item.icon;
                     return (
-                      <div key={item.label} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                      <div key={item.label} className="rounded-md border border-slate-200 bg-slate-50 p-4">
                         <Icon className="h-4 w-4 text-cyan-600" aria-hidden="true" />
                         <p className="mt-3 text-2xl font-bold text-slate-950">{item.value}</p>
                         <p className="mt-1 text-xs font-medium text-slate-500">{item.label}</p>
@@ -287,7 +306,7 @@ export default function InterviewPreparation() {
                 </button>
               </div>
 
-              <div className="rounded-lg border border-slate-200 bg-slate-950 p-6 text-white shadow-sm">
+              <div className="np-card-ink p-6">
                 <div className="mb-5 flex items-center gap-3">
                   <Clock3 className="h-5 w-5 text-cyan-300" aria-hidden="true" />
                   <h2 className="text-xl font-bold text-white">Operational flow</h2>

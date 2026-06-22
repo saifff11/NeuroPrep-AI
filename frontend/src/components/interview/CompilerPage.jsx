@@ -1,14 +1,12 @@
 // PROFESSIONAL CODING COMPILER - ENTERPRISE-GRADE DEVELOPMENT ENVIRONMENT
 import React, { useState, useEffect, useRef } from "react";
-import { Editor } from "@monaco-editor/react";
+import { Editor, loader } from "@monaco-editor/react";
+import * as monaco from "monaco-editor";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { toast } from 'react-toastify';
 import { useLocation, useNavigate } from 'react-router-dom';
 import judge0Client from '../../services/judge0Client';
-
-// Import JUDGE0_BASE_URL from the service
-const JUDGE0_BASE_URL = 'https://judge0-ce.p.rapidapi.com';
 
 // Persist submissions by POSTing to our backend API which enforces Firebase auth
 // server-side and writes canonical records into MongoDB. Frontend should not
@@ -26,6 +24,8 @@ const createSubmission = async (payload = {}) => {
 };
 import { markRoundComplete } from '../../config/roundsConfig';
 import RoundBreakScreen from './RoundBreakScreen';
+
+loader.config({ monaco });
 
 function CompilerPage(props) {
   const {
@@ -80,6 +80,8 @@ function CompilerPage(props) {
   const [messageIndex, setMessageIndex] = useState(0);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [showBreakScreen, setShowBreakScreen] = useState(false);
+  const [monacoReady, setMonacoReady] = useState(false);
+  const [usePlainTextEditor, setUsePlainTextEditor] = useState(false);
   const [activeTab, setActiveTab] = useState('Description');
   const [activeOutputTab, setActiveOutputTab] = useState('custom'); // Output tab: 'custom' or 'tests'
   const [selectedMainTopic, setSelectedMainTopic] = useState('algorithms');
@@ -110,11 +112,26 @@ function CompilerPage(props) {
   useEffect(() => { setDarkMode(editorTheme === 'vs-dark'); }, [editorTheme]);
 
   useEffect(() => {
+    setUsePlainTextEditor(false);
+    const timeout = setTimeout(() => {
+      if (!editorRef.current) {
+        setUsePlainTextEditor(true);
+      }
+    }, 4500);
+
+    return () => clearTimeout(timeout);
+  }, []);
+
+  useEffect(() => {
     if (judge0Status.connected === true) toast.success('✅ Judge0 is connected!', { autoClose: 3000 });
     else if (judge0Status.connected === false) toast.error('❌ Judge0 connection failed.', { autoClose: 5000 });
   }, [judge0Status.connected]);
 
-  useEffect(() => { setProblemConfig((prev) => ({ ...prev, topic: selectedTopic })); }, [selectedTopic]);
+  useEffect(() => {
+    if (selectedTopic) {
+      setProblemConfig((prev) => ({ ...prev, topic: selectedTopic }));
+    }
+  }, [selectedTopic]);
 
   useEffect(() => {
     if (selectedTopic && selectedTopic !== 'algorithms') {
@@ -220,11 +237,10 @@ function CompilerPage(props) {
     setLanguage(lang);
   };
 
-  const validateJudge0Setup = () => { if (!JUDGE0_BASE_URL) return { valid: false, message: 'Judge0 base URL is not configured.' }; return { valid: true }; };
+  const validateJudge0Setup = () => ({ valid: true });
 
   const runCode = async () => {
     if (!code.trim()) { toast.error('Please write some code first!'); return; }
-    if (!JUDGE0_BASE_URL) { toast.error('Judge0 not configured'); setOutput('Judge0 base URL is missing.'); return; }
     setIsRunning(true); setOutput('Running code...');
     try {
       const res = await judge0Client.runOnce({ code, languageId: language.id, stdin: customInput });
@@ -286,15 +302,15 @@ function CompilerPage(props) {
     setTestResults({ passed:0,total:0,details:[] });
     
     try {
-      toast.info('🧪 Running sample test cases...', { autoClose:1500 });
+      toast.info('Running sample test cases...', { autoClose:1500 });
       const batch = await judge0Client.runBatch({ code, languageId: language.id, testCases: sampleTestCases });
       setTestResults(batch);
       setActiveOutputTab('tests'); // Auto-switch to Test Results tab
       
       if (batch.passed === batch.total) {
-        toast.success(`🎉 All ${batch.passed}/${batch.total} sample test cases passed!`);
+        toast.success(`All ${batch.passed}/${batch.total} sample test cases passed!`);
       } else { 
-        toast.error(`❌ ${batch.passed}/${batch.total} sample test cases passed. Keep trying!`); 
+        toast.error(`${batch.passed}/${batch.total} sample test cases passed. Keep trying!`); 
       }
     } catch (e) { 
       toast.error('Failed to run sample tests: ' + e.message); 
@@ -313,15 +329,15 @@ function CompilerPage(props) {
     if (!judge0Status.valid) { toast.error('Judge0 not configured'); setTestResults({ passed:0,total:0,details:[{input:'',expected:'',actual:judge0Status.message,passed:false,error:'Configuration'}]}); return; }
     setIsSubmitting(true); setTestResults({ passed:0,total:0,details:[] });
     try {
-      toast.info('🧪 Running test cases...', { autoClose:1500 });
+      toast.info('Running test cases...', { autoClose:1500 });
       const batch = await judge0Client.runBatch({ code, languageId: language.id, testCases });
       setTestResults(batch);
       setActiveOutputTab('tests'); // Auto-switch to Test Results tab
       if (batch.passed === batch.total) {
-        toast.success(`🎉 All ${batch.passed}/${batch.total} test cases passed! Great job!`);
+        toast.success(`All ${batch.passed}/${batch.total} test cases passed! Great job!`);
         const roundId = location.state?.roundId; if (roundId) try { markRoundComplete(user?.uid || 'anonymous', roundId); } catch {}
         if (isFullInterview && currentRoundIndex < allRounds.length - 1) setTimeout(() => setShowBreakScreen(true), 3000);
-      } else { toast.error(`❌ ${batch.passed}/${batch.total} test cases passed. Keep trying!`); }
+      } else { toast.error(`${batch.passed}/${batch.total} test cases passed. Keep trying!`); }
       // Persist aggregated submission result (best-effort, non-blocking)
       (async () => {
         try {
@@ -658,26 +674,60 @@ function CompilerPage(props) {
           <div ref={verticalSplitRef} className="flex-1 flex flex-col min-h-0 select-none">
             
             <div style={{ height: isMobile ? 'auto' : `calc(${editorHeight}% - 3px)` }} className={`${isMobile ? 'h-auto' : 'relative'} min-h-[180px] border-b border-blue-100`}>
-              <Editor
-                height={isMobile ? '50vh' : '100%'}
-                language={language ? language.name : 'plaintext'}
-                value={code}
-                onChange={(value) => setCode(value || '')}
-                theme={editorTheme}
-                options={{
-                  fontSize: fontSize,
-                  minimap: { enabled: false },
-                  scrollBeyondLastLine: false,
-                  wordWrap: 'on',
-                  lineNumbers: 'on',
-                  glyphMargin: false,
-                  folding: true,
-                  padding: { top: 8 }
-                }}
-                onMount={(editor) => { editorRef.current = editor; }}
-              />
+              {usePlainTextEditor ? (
+                <div className="h-full min-h-[50vh] bg-slate-950 p-4 text-white">
+                  <div className="mb-2 flex items-center justify-between gap-3 text-xs text-slate-300">
+                    <span>Plain editor fallback</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUsePlainTextEditor(false);
+                        setMonacoReady(false);
+                        editorRef.current = null;
+                      }}
+                      className="rounded border border-cyan-400/40 px-2 py-1 text-cyan-200 hover:bg-cyan-400/10"
+                    >
+                      Retry Monaco
+                    </button>
+                  </div>
+                  <textarea
+                    value={code}
+                    onChange={(event) => setCode(event.target.value)}
+                    spellCheck={false}
+                    className="h-[calc(100%-2rem)] min-h-[320px] w-full resize-none rounded-md border border-slate-700 bg-slate-900 p-4 font-mono text-sm leading-6 text-slate-100 outline-none focus:border-cyan-400"
+                    style={{ fontSize }}
+                  />
+                </div>
+              ) : (
+                <Editor
+                  height={isMobile ? '50vh' : '100%'}
+                  language={language ? language.name : 'plaintext'}
+                  value={code}
+                  loading={<div className="flex h-full items-center justify-center text-sm font-semibold text-slate-500">Preparing code editor...</div>}
+                  onChange={(value) => setCode(value || '')}
+                  theme={editorTheme}
+                  options={{
+                    fontSize: fontSize,
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    wordWrap: 'on',
+                    lineNumbers: 'on',
+                    glyphMargin: false,
+                    folding: true,
+                    padding: { top: 8 },
+                    automaticLayout: true
+                  }}
+                  onMount={(editor) => {
+                    editorRef.current = editor;
+                    setMonacoReady(true);
+                    setUsePlainTextEditor(false);
+                  }}
+                />
+              )}
               {!isMobile && (
-                <div className="absolute top-1 left-2 text-[10px] text-blue-400 bg-white/70 px-1 rounded shadow-sm">Editor</div>
+                <div className="absolute top-1 left-2 text-[10px] text-blue-400 bg-white/70 px-1 rounded shadow-sm">
+                  {usePlainTextEditor ? 'Fallback Editor' : monacoReady ? 'Editor' : 'Loading Editor'}
+                </div>
               )}
             </div>
             {/* Horizontal Divider (Desktop) */}

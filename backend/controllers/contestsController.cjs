@@ -4,6 +4,25 @@ const Registration = require('../models/Registration.cjs');
 const ContestProgress = require('../models/ContestProgress.cjs');
 const mongoose = require('mongoose');
 
+function getAuthenticatedUser(req) {
+  const user = req.user || req.firebaseUser || {};
+  const uid = user.uid || user.id || user.sub;
+  if (!uid) return null;
+
+  const email = user.email || '';
+  const displayName =
+    user.name ||
+    user.displayName ||
+    user.firebase?.name ||
+    (email ? email.split('@')[0] : 'User');
+
+  return {
+    uid,
+    email,
+    displayName
+  };
+}
+
 function ensureDbConnected(res) {
   // readyState: 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
   if (mongoose.connection.readyState !== 1) {
@@ -400,22 +419,19 @@ exports.publishContest = async (req, res) => {
   }
 };
 
-// Register for contest (protected - requires Supabase auth)
+// Register for contest (protected - requires Firebase auth)
 exports.registerForContest = async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Get user from Supabase auth middleware
-    const supabaseUser = req.supabaseUser;
-    if (!supabaseUser || !supabaseUser.id) {
+    const authUser = getAuthenticatedUser(req);
+    if (!authUser) {
       return res.status(401).json({ success: false, error: 'Authentication required' });
     }
     
-    const userId = supabaseUser.id;
-    const userEmail = supabaseUser.email || '';
-    const displayName = supabaseUser.user_metadata?.full_name || 
-                       supabaseUser.user_metadata?.name || 
-                       userEmail.split('@')[0] || 'User';
+    const userId = authUser.uid;
+    const userEmail = authUser.email;
+    const displayName = authUser.displayName;
     
     const contest = await Contest.findById(id);
     if (!contest) {
@@ -488,18 +504,17 @@ exports.registerForContest = async (req, res) => {
   }
 };
 
-// Unregister from contest (protected - requires Supabase auth)
+// Unregister from contest (protected - requires Firebase auth)
 exports.unregisterFromContest = async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Get user from Supabase auth middleware
-    const supabaseUser = req.supabaseUser;
-    if (!supabaseUser || !supabaseUser.id) {
+    const authUser = getAuthenticatedUser(req);
+    if (!authUser) {
       return res.status(401).json({ success: false, error: 'Authentication required' });
     }
     
-    const userId = supabaseUser.id;
+    const userId = authUser.uid;
     
     const contest = await Contest.findById(id);
     if (!contest) {

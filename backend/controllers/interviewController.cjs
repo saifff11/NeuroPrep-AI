@@ -134,17 +134,34 @@ exports.getNextQuestion = async (req, res) => {
 
     // CRITICAL: Use user's selected topic as the category to prevent random categorization
     const selectedCategory = transcript.topic || 'General';
+    const variationSeed = `${transcript.sessionId}-${currentQuestionNumber}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const questionAngles = [
+      'practical debugging scenario',
+      'real-world design tradeoff',
+      'concept explanation with example',
+      'edge case and failure-mode analysis',
+      'implementation decision and reasoning',
+      'performance or scalability concern',
+      'testing and validation approach',
+      'team/project experience discussion'
+    ];
+    const selectedAngle = questionAngles[Math.floor(Math.random() * questionAngles.length)];
     
-    // Generate next question using Ollama
+    // Generate next question using the configured AI provider.
     const prompt = `You are conducting a ${transcript.difficulty} level interview for a ${transcript.role} position focusing on ${selectedCategory}.
 
 This is question ${currentQuestionNumber} of ${transcript.totalQuestions}.${contextNote}
+
+Freshness seed for this exact interview run: ${variationSeed}
+Question angle to use now: ${selectedAngle}
 
 Generate ONE interview question that:
 - Is appropriate for ${transcript.difficulty} level (easy = fundamental concepts, medium = practical application, hard = advanced problem-solving)
 - Is relevant to ${transcript.role} role
 - Specifically covers ${selectedCategory} topics ONLY
 - Tests different aspects than previous questions
+- Is materially different from common starter questions and from any question you would ask for the same role/topic in another session
+- Uses the freshness seed and angle above to vary the wording, scenario, and concept focus
 - Is clear and professional
 - Has 3-5 expected key points for a good answer
 - Determine if this question requires CODE/PROGRAMMING (compilerRequired: true/false)

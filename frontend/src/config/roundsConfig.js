@@ -307,8 +307,12 @@ export const getNextRound = (id) => {
 export const implementedModes = new Set([
   ROUND_MODES.MCQ,
   ROUND_MODES.CODING,
-  ROUND_MODES.PERSON
-]); // others currently placeholders
+  ROUND_MODES.PERSON,
+  ROUND_MODES.CASE,
+  ROUND_MODES.SCENARIO,
+  ROUND_MODES.PITCH,
+  ROUND_MODES.ANALYSIS
+]);
 
 export const isModeImplemented = (mode) => implementedModes.has(mode);
 

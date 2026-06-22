@@ -50,10 +50,12 @@ const InterviewSessionSchema = new mongoose.Schema({
     questionIndex: Number,
     question: String,
     answer: String,
+    isCorrect: Boolean,
     category: String,
     timestamp: Date,
     timeSpent: Number
   }],
+  correctAnswers: { type: Number, default: 0 },
   
   // Assessment data
   assessment: {
@@ -107,6 +109,7 @@ router.post('/store-session', async (req, res) => {
       timeSpent: sessionData.timeSpent || 0,
       totalQuestions: sessionData.totalQuestions || 0,
       answeredQuestions: sessionData.answeredQuestions || 0,
+      correctAnswers: sessionData.correctAnswers || 0,
       questions: sessionData.questions || [],
       answers: sessionData.answers || [],
       assessment: sessionData.assessment || {},
@@ -180,7 +183,7 @@ router.get('/history/:userId', async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(offset))
-      .select('sessionId topic difficulty duration overallScore createdAt timeSpent answeredQuestions totalQuestions');
+      .select('sessionId userId topic difficulty duration interviewType createdAt startTime endTime timeSpent answeredQuestions totalQuestions correctAnswers assessment');
 
     const total = await InterviewSession.countDocuments({ userId });
 

@@ -74,7 +74,7 @@ export default function RoundRoadmapModal({ open, onClose, trackKey, onSelectRou
                     )}
                     {r.optional && <div className="text-[10px] inline-block px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 mb-2">Optional</div>}
                     <div className="text-xs text-gray-500">
-                      {enabled ? 'Click to start' : 'Coming soon'}
+                      {enabled ? 'Click to start' : 'Ready'}
                     </div>
                     {r.next && (
                       <div className="absolute top-2 right-2 text-[9px] text-gray-400">→ {r.next}</div>
@@ -85,8 +85,8 @@ export default function RoundRoadmapModal({ open, onClose, trackKey, onSelectRou
             </div>
 
             <div className="mt-6 text-[11px] text-gray-400 flex flex-wrap gap-4">
-              <div><span className="font-semibold text-gray-600">Legend:</span> MCQ / Coding / Person are active. Case, Scenario, Pitch, Analysis are placeholders.</div>
-              <div>Future: progress badges & performance insights.</div>
+              <div><span className="font-semibold text-gray-600">Legend:</span> MCQ, coding, live interview, case, scenario, pitch, and analysis rounds are active.</div>
+              <div>Progress badges and performance insights appear after completed sessions.</div>
             </div>
           </motion.div>
         </motion.div>

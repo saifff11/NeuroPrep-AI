@@ -16,7 +16,9 @@ import 'react-toastify/dist/ReactToastify.css';
 import Register from './pages/auth/Register.jsx';
 import MCQInterview from './pages/interview/MCQInterview.jsx';
 import Compiler from './pages/interview/Compiler.jsx';
+import PracticeSession from './pages/interview/PracticeSession.jsx';
 import Dashboard from './pages/Dashboard.jsx';
+import ResumeAnalyzer from './pages/ResumeAnalyzer.jsx';
 import FaceToFaceInterview from './pages/interview/FaceToFaceInterview.jsx';
 import InterviewPreparation from './pages/interview/InterviewPreparation.jsx';
 import InterviewLanding from './pages/interview/InterviewLanding.jsx';
@@ -28,7 +30,7 @@ import AdminContestView from './pages/admin/AdminContestView.jsx';
 import ManageScheduledInterviews from './pages/admin/ManageScheduledInterviews.jsx';
 import ScheduledInterviews from './pages/interview/ScheduledInterviews.jsx';
 
-// ✅ ProtectedRoute component
+// ProtectedRoute component
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
 
@@ -61,6 +63,7 @@ function AppContent() {
     '/contests',
     '/compiler',
     '/face-to-face-interview',
+    '/resume-analyzer',
   ];
   const isFullBleedRoute = fullBleedRoutes.includes(location.pathname)
     || fullBleedPrefixes.some((prefix) => location.pathname.startsWith(prefix));
@@ -86,7 +89,7 @@ function AppContent() {
           backgroundColor: '#ffffff',
           color: '#1f2937',
           border: '2px solid #3b82f6',
-          borderRadius: '12px',
+          borderRadius: '8px',
           boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
           minHeight: '70px',
           padding: '16px',
@@ -104,6 +107,7 @@ function AppContent() {
           <Route path="/" element={<Home />} />
           <Route path="/practice" element={<MockInterviews />} />
           <Route path="/practice/:category" element={<MockInterviews />} />
+          <Route path="/practice-session" element={<PracticeSession />} />
           <Route path="/mock-interviews" element={<MockInterviews />} />
           <Route path="/contests" element={<Contests />} />
           <Route path="/contest/:contestId/problems" element={<ProtectedRoute><ContestProblems /></ProtectedRoute>} />
@@ -114,20 +118,21 @@ function AppContent() {
           <Route path="/interview-prepration" element={<InterviewPreparation />} />
           <Route path="/interview-prepration/:category" element={<InterviewPreparation />} />
 
-          {/* ✅ Protected Routes */}
+          {/* Protected Routes */}
           <Route path="/compiler" element={<ProtectedRoute><Compiler /></ProtectedRoute>} />
           <Route path="/mcq-interview" element={<ProtectedRoute><MCQInterview /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/resume-analyzer" element={<ProtectedRoute><ResumeAnalyzer /></ProtectedRoute>} />
           <Route path="/face-to-face-interview" element={<ProtectedRoute><FaceToFaceInterview /></ProtectedRoute>} />
           <Route path="/interview/:interviewId/start" element={<ProtectedRoute><FaceToFaceInterview /></ProtectedRoute>} />
           <Route path="/interview/:interviewId" element={<InterviewLanding />} />
           <Route path="/scheduled-interviews" element={<ScheduledInterviews />} />
 
-          {/* ✅ Public Routes */}
+          {/* Public Routes */}
           <Route path="/Login" element={<Login />} />
           <Route path="/register" element={<Register />} />
 
-          {/* ✅ Admin Routes */}
+          {/* Admin Routes */}
           <Route path="/admin-login" element={<AdminLogin />} />
           <Route path="/admin-dashboard" element={<ProfessionalAdminDashboard />} />
           <Route path="/admin/contest/:contestId" element={<AdminContestView />} />
@@ -140,7 +145,7 @@ function AppContent() {
   );
 }
 
-// ✅ Wrap only with AuthProvider (no Router)
+// Wrap only with AuthProvider (no Router)
 export default function App() {
   return (
     <AuthProvider>

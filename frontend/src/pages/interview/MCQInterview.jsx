@@ -7,24 +7,37 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
+import {
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  RotateCcw,
+  Sparkles,
+  Target,
+  XCircle
+} from 'lucide-react';
 import OllamaService from '../../services/OllamaService';
 import { progressService } from '../../services/ProgressService';
 import RoundBreakScreen from '../../components/interview/RoundBreakScreen';
+import { getTrackByKey } from '../../config/tracksConfig';
+import { getRoundById } from '../../config/roundsConfig';
 
 const MCQInterview = () => {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   
+  const navigationState = location.state || {};
+
   // Get selected topic from navigation state
-  const selectedTopic = location.state?.subject || 'JavaScript';
+  const selectedTopic = navigationState.topic || navigationState.subject || 'JavaScript';
   
   // Full interview mode tracking
-  const isFullInterview = location.state?.isFullInterview || false;
-  const allRounds = location.state?.allRounds || [];
-  const currentRoundIndex = location.state?.currentRoundIndex || 0;
-  const trackKey = location.state?.trackKey || null;
-  const totalRounds = location.state?.totalRounds || 0;
+  const isFullInterview = navigationState.isFullInterview || false;
+  const allRounds = navigationState.allRounds || [];
+  const currentRoundIndex = navigationState.currentRoundIndex || 0;
+  const trackKey = navigationState.trackKey || null;
+  const totalRounds = navigationState.totalRounds || 0;
   
   // Break screen state
   const [showBreakScreen, setShowBreakScreen] = useState(false);
@@ -64,13 +77,52 @@ const MCQInterview = () => {
     return topicMap[topic] || topic;
   };
   
-  const apiTopic = mapTopicToAPI(selectedTopic);
+  const trackFromState = trackKey ? getTrackByKey(trackKey) : null;
+  const roundFromState = navigationState.roundId ? getRoundById(navigationState.roundId) : null;
+  const selectedTrackTitle = navigationState.trackTitle || navigationState.jobRole || trackFromState?.title || '';
+  const selectedSubject = navigationState.subject || navigationState.topic || '';
+  const selectedDescription = navigationState.subTopicDescription || '';
+  const roundLabel = navigationState.roundLabel || roundFromState?.label || '';
+  const trackGroup = navigationState.trackGroup || roundFromState?.trackGroup || (
+    trackFromState?.category === 'Company' ? 'company' :
+      trackFromState?.category === 'Non-Tech' ? 'nonTech' :
+        trackFromState?.category === 'Tech' ? 'tech' : ''
+  );
+  const normalizeTopicItem = (topic) => {
+    if (!topic) return null;
+    if (typeof topic === 'string') return { name: topic, desc: '' };
+    const name = topic.name || topic.value || topic.label;
+    if (!name) return null;
+    return { name, desc: topic.desc || topic.description || '' };
+  };
+  const contextTopicItems = (navigationState.topics || trackFromState?.subTopics || [])
+    .map(normalizeTopicItem)
+    .filter(Boolean);
+  const hasPracticeContext = Boolean(
+    trackKey ||
+    selectedTrackTitle ||
+    selectedDescription ||
+    roundLabel ||
+    navigationState.mode
+  );
+  const buildPracticeTopic = (subject = selectedSubject || selectedTopic) => {
+    const cleanSubject = String(subject || '').trim();
+    const cleanTrack = String(selectedTrackTitle || '').trim();
+
+    if (cleanTrack && cleanSubject && cleanTrack.toLowerCase() !== cleanSubject.toLowerCase()) {
+      return `${cleanTrack} - ${cleanSubject}`;
+    }
+
+    return cleanSubject || cleanTrack || mapTopicToAPI(selectedTopic);
+  };
+  const apiTopic = hasPracticeContext ? buildPracticeTopic() : mapTopicToAPI(selectedTopic);
   
   const [questions, setQuestions] = useState([]);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState({});
   const [score, setScore] = useState(0);
   const [showResults, setShowResults] = useState(false);
+  const [coachFeedback, setCoachFeedback] = useState(null);
   const [loading, setLoading] = useState(false);
   const [quizStarted, setQuizStarted] = useState(false);
   const [timeLeft, setTimeLeft] = useState(null);
@@ -122,8 +174,8 @@ const MCQInterview = () => {
   }, [loading, quizStarted]);
 
   // Topic hierarchy system - MUST be declared before use in useEffect
-  const [selectedMainTopic, setSelectedMainTopic] = useState(null);
-  const [showSubTopics, setShowSubTopics] = useState(false);
+  const [selectedMainTopic, setSelectedMainTopic] = useState(hasPracticeContext ? 'practice-context' : null);
+  const [showSubTopics, setShowSubTopics] = useState(hasPracticeContext);
 
   // Quiz configuration - use selected topic as default with 10-minute timer
   const [quizConfig, setQuizConfig] = useState({
@@ -136,6 +188,33 @@ const MCQInterview = () => {
 
   // Debounce timer for auto-fetch when selections change
   const fetchTimer = useRef(null);
+  const contextInitRef = useRef('');
+  const practiceContextKey = [
+    trackKey,
+    selectedTrackTitle,
+    selectedSubject,
+    selectedDescription,
+    roundLabel,
+    navigationState.mode
+  ].filter(Boolean).join('|');
+  const topicBadgeText = quizConfig.topic || apiTopic;
+  const selectedTrackLabel = selectedTrackTitle || (
+    trackGroup === 'company' ? 'Company Track' :
+      trackGroup === 'nonTech' ? 'Business Track' :
+        trackGroup === 'tech' ? 'Technical Track' : 'Practice Track'
+  );
+  const mcqRequestContext = {
+    trackKey,
+    trackTitle: selectedTrackTitle,
+    trackGroup,
+    subject: selectedSubject,
+    selectedTopic: quizConfig.topic,
+    subTopicDescription: selectedDescription,
+    roundId: navigationState.roundId,
+    roundLabel,
+    mode: navigationState.mode,
+    availableTopics: contextTopicItems.map((topic) => topic.name),
+  };
 
   // REMOVED: Auto-generate questions on topic change
   // Questions will only be generated when user clicks "Start Interview" button
@@ -143,6 +222,18 @@ const MCQInterview = () => {
 
   // Auto-configure based on selected topic from navigation
   useEffect(() => {
+    if (hasPracticeContext) {
+      if (contextInitRef.current !== practiceContextKey) {
+        contextInitRef.current = practiceContextKey;
+        setSelectedMainTopic('practice-context');
+        setShowSubTopics(true);
+        setQuizConfig((cfg) => (
+          cfg.topic === apiTopic ? cfg : { ...cfg, topic: apiTopic }
+        ));
+      }
+      return;
+    }
+
     if (selectedTopic && selectedTopic !== 'JavaScript') {
       const topicToMainCategoryMap = {
         'Software Developer': 'tech-computer-science',
@@ -183,11 +274,13 @@ const MCQInterview = () => {
           setQuizConfig((cfg) => ({ ...cfg, topic: defaultSubtopic }));
         }
       } else {
-        // Fallback: assume tech if unknown new topic comes in
+        // Fallback: keep direct unknown topics usable instead of blocking the start button.
         setSelectedMainTopic('tech-computer-science');
+        setShowSubTopics(true);
+        setQuizConfig((cfg) => ({ ...cfg, topic: mapTopicToAPI(selectedTopic) }));
       }
     }
-  }, [selectedTopic]);
+  }, [selectedTopic, hasPracticeContext, apiTopic, practiceContextKey]);
 
   // Get default subtopic based on selected main topic
   const getDefaultSubtopic = (topic) => {
@@ -231,7 +324,7 @@ const MCQInterview = () => {
     { value: 'engineering', label: 'Engineering & Sciences', icon: '⚙️', color: 'red' },
     { value: 'creative-design', label: 'Creative & Design', icon: '🎨', color: 'purple' },
     { value: 'healthcare-medical', label: 'Healthcare & Medical', icon: '🏥', color: 'orange' },
-    { value: 'finance-economics', label: 'Finance & Economics', icon: '�', color: 'yellow' }
+    { value: 'finance-economics', label: 'Finance & Economics', icon: '💰', color: 'yellow' }
   ];
 
   // Subtopics for each main category - Enhanced structure
@@ -241,26 +334,26 @@ const MCQInterview = () => {
       { value: 'Software Developer', label: 'Software Developer', icon: '👨‍💻' },
       { value: 'Data Scientist', label: 'Data Scientist', icon: '📈' },
       { value: 'Cybersecurity Specialist', label: 'Cybersecurity Specialist', icon: '🔒' },
-      { value: 'DevOps Engineer', label: 'DevOps Engineer', icon: '�' },
+      { value: 'DevOps Engineer', label: 'DevOps Engineer', icon: '⚙️' },
       { value: 'AI/ML Engineer', label: 'AI/ML Engineer', icon: '🤖' },
       { value: 'Full Stack Developer', label: 'Full Stack Developer', icon: '🌐' },
       { value: 'Mobile App Developer', label: 'Mobile App Developer', icon: '📱' },
       { value: 'Cloud Architect', label: 'Cloud Architect', icon: '☁️' },
       { value: 'Database Administrator', label: 'Database Administrator', icon: '🗄️' },
-      { value: 'System Administrator', label: 'System Administrator', icon: '�️' },
+      { value: 'System Administrator', label: 'System Administrator', icon: '🖥️' },
       { value: 'Quality Assurance Engineer', label: 'QA Engineer', icon: '🧪' },
       { value: 'UI/UX Developer', label: 'UI/UX Developer', icon: '🎨' },
       // Programming Languages
       { value: 'JavaScript', label: 'JavaScript Programming', icon: '⚡' },
-      { value: 'Python', label: 'Python Programming', icon: '�' },
+      { value: 'Python', label: 'Python Programming', icon: '🐍' },
       { value: 'Java', label: 'Java Programming', icon: '☕' },
       { value: 'C++', label: 'C++ Programming', icon: '⚡' },
       { value: 'React', label: 'React.js Framework', icon: '⚛️' },
-      { value: 'Node.js', label: 'Node.js Backend', icon: '�' },
+      { value: 'Node.js', label: 'Node.js Backend', icon: '🟢' },
       // Core CS Concepts
       { value: 'Algorithms', label: 'Data Structures & Algorithms', icon: '🧠' },
       { value: 'System Design', label: 'System Design', icon: '🏗️' },
-      { value: 'Database Design', label: 'Database Design & SQL', icon: '�' },
+      { value: 'Database Design', label: 'Database Design & SQL', icon: '🗄️' },
       { value: 'Network Security', label: 'Network Security', icon: '🌐' },
       { value: 'Machine Learning', label: 'Machine Learning', icon: '🤖' }
     ],
@@ -268,9 +361,9 @@ const MCQInterview = () => {
       { value: 'Product Manager', label: 'Product Manager', icon: '📋' },
       { value: 'Project Manager', label: 'Project Manager', icon: '📅' },
       { value: 'Business Analyst', label: 'Business Analyst', icon: '📈' },
-      { value: 'Marketing Manager', label: 'Marketing Manager', icon: '�' },
-      { value: 'Sales Manager', label: 'Sales Manager', icon: '�' },
-      { value: 'HR Manager', label: 'HR Manager', icon: '�' },
+      { value: 'Marketing Manager', label: 'Marketing Manager', icon: '📣' },
+      { value: 'Sales Manager', label: 'Sales Manager', icon: '🤝' },
+      { value: 'HR Manager', label: 'HR Manager', icon: '👥' },
       { value: 'Operations Manager', label: 'Operations Manager', icon: '⚙️' },
       { value: 'Strategy Consultant', label: 'Strategy Consultant', icon: '🎯' },
       { value: 'Digital Marketing', label: 'Digital Marketing', icon: '💻' },
@@ -285,7 +378,7 @@ const MCQInterview = () => {
       { value: 'Incident Response', label: 'Incident Response', icon: '🚨' },
       { value: 'Risk Management', label: 'Risk Management', icon: '⚖️' },
       { value: 'Compliance', label: 'Security Compliance', icon: '📋' },
-      { value: 'Malware Analysis', label: 'Malware Analysis', icon: '�' },
+      { value: 'Malware Analysis', label: 'Malware Analysis', icon: '🛡️' },
       { value: 'Digital Forensics', label: 'Digital Forensics', icon: '🔬' }
     ],
     'cloud-computing': [
@@ -376,7 +469,8 @@ const MCQInterview = () => {
       const response = await OllamaService.getMCQQuestions(
         quizConfig.topic,
         quizConfig.difficulty,
-        quizConfig.count
+        quizConfig.count,
+        mcqRequestContext
       );
 
       if (response.success && response.questions?.length > 0) {
@@ -449,6 +543,42 @@ const MCQInterview = () => {
     }
   };
 
+  const buildCoachFeedback = (correctAnswers, totalQuestions, answers) => {
+    const percentage = totalQuestions ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
+    const missedTopics = [...new Set(
+      answers
+        .filter((answer) => !answer.isCorrect)
+        .map((answer) => answer.category || quizConfig.topic)
+        .filter(Boolean)
+    )].slice(0, 3);
+    const focus = missedTopics.length ? missedTopics.join(', ') : quizConfig.topic;
+
+    if (percentage >= 85) {
+      return {
+        headline: 'Excellent signal. Move up the difficulty.',
+        strengths: [`Strong accuracy in ${quizConfig.topic}`, 'Good recall under time pressure'],
+        improvements: ['Practice harder mixed questions', 'Explain answers aloud for interview fluency'],
+        nextSteps: [`Attempt hard ${quizConfig.topic} MCQs`, 'Start a face-to-face round to test explanation quality']
+      };
+    }
+
+    if (percentage >= 65) {
+      return {
+        headline: 'Good base. Target the weak pockets now.',
+        strengths: [`You understand the core of ${quizConfig.topic}`, 'Enough accuracy to start applied practice'],
+        improvements: [`Revisit: ${focus}`, 'Reduce mistakes by reviewing explanations'],
+        nextSteps: [`Practice 10 focused questions on ${focus}`, 'Try one compiler or interview round after review']
+      };
+    }
+
+    return {
+      headline: 'Build fundamentals before increasing difficulty.',
+      strengths: ['You completed the diagnostic', 'Your weak areas are now visible'],
+      improvements: [`Study fundamentals for ${focus}`, 'Make short notes from every wrong answer'],
+      nextSteps: [`Restart with easy ${quizConfig.topic} MCQs`, `Review ${focus} before the next attempt`]
+    };
+  };
+
   const handleQuizComplete = async () => {
     let correctAnswers = 0;
     const userAnswers = [];
@@ -462,11 +592,14 @@ const MCQInterview = () => {
         question: question.question,
         selectedAnswer: question.options[selectedAnswers[index]] || 'Not answered',
         correctAnswer: question.options[question.correctAnswer],
-        isCorrect
+        isCorrect,
+        category: question.category || quizConfig.topic
       });
     });
     
     setScore(correctAnswers);
+    const feedback = buildCoachFeedback(correctAnswers, questions.length, userAnswers);
+    setCoachFeedback(feedback);
 
     // Save session to progress tracking
     if (user) {
@@ -475,7 +608,7 @@ const MCQInterview = () => {
         const sessionData = {
           userId: user.uid,
           sessionId: `mcq_${Date.now()}_${user.uid}`,
-          topic: selectedTopic,
+          topic: quizConfig.topic,
           difficulty: quizConfig.difficulty,
           duration: 10, // 10 minutes
           interviewType: 'mcq',
@@ -501,7 +634,7 @@ const MCQInterview = () => {
           assessment: {
             overallScore: Math.round((correctAnswers / questions.length) * 10 * 100) / 100,
             percentage: Math.round((correctAnswers / questions.length) * 100),
-            summary: `Scored ${correctAnswers}/${questions.length} in ${selectedTopic} MCQ interview`,
+            summary: `Scored ${correctAnswers}/${questions.length} in ${quizConfig.topic} MCQ interview`,
             categoryScores: {
               accuracy: Math.round((correctAnswers / questions.length) * 10 * 100) / 100,
               speed: Math.min(10, Math.round(((600 - (600 - (timeLeft || 0))) / 60) * 2 * 100) / 100),
@@ -509,12 +642,10 @@ const MCQInterview = () => {
             },
             strengths: correctAnswers > questions.length * 0.8 ? ['Excellent accuracy', 'Strong knowledge'] : 
                       correctAnswers > questions.length * 0.6 ? ['Good understanding', 'Decent performance'] : 
-                      ['Participated actively', 'Room for improvement'],
-            improvements: correctAnswers < questions.length * 0.8 ? ['Review fundamental concepts', 'Practice more questions'] : 
-                         correctAnswers < questions.length * 0.9 ? ['Fine-tune accuracy'] : 
-                         ['Maintain excellent performance'],
-            detailedFeedback: `You completed ${Object.keys(selectedAnswers).length}/${questions.length} questions with ${Math.round((correctAnswers / questions.length) * 100)}% accuracy in ${selectedTopic}. ${correctAnswers > questions.length * 0.8 ? 'Excellent performance!' : correctAnswers > questions.length * 0.6 ? 'Good work, keep practicing!' : 'Focus on fundamentals and practice more.'}`,
-            nextSteps: ['Review incorrect answers', 'Practice similar topics', 'Take more mock interviews'],
+                      feedback.strengths,
+            improvements: feedback.improvements,
+            detailedFeedback: `${feedback.headline} You completed ${Object.keys(selectedAnswers).length}/${questions.length} questions with ${Math.round((correctAnswers / questions.length) * 100)}% accuracy in ${quizConfig.topic}.`,
+            nextSteps: feedback.nextSteps,
             interviewReadiness: `${Math.round((correctAnswers / questions.length) * 100)}% - ${correctAnswers > questions.length * 0.8 ? 'Well prepared' : correctAnswers > questions.length * 0.6 ? 'Good foundation, needs practice' : 'Requires more preparation'}`
           }
         };
@@ -547,6 +678,10 @@ const MCQInterview = () => {
             border: '2px solid #10b981',
             boxShadow: '0 6px 20px rgba(16, 185, 129, 0.12)'
           }
+        });
+        toast.info(feedback.headline, {
+          autoClose: 6000,
+          position: "bottom-right"
         });
       } catch (error) {
         console.error('Error saving progress:', error);
@@ -613,7 +748,14 @@ const MCQInterview = () => {
     navigate(route, {
       state: {
         roundId: nextRound.id,
-        subject: selectedTopic, // Keep the original topic/track title
+        subject: selectedSubject || selectedTopic, // Keep the original topic/track title
+        topic: selectedSubject || selectedTopic,
+        jobRole: selectedTrackTitle,
+        trackTitle: selectedTrackTitle,
+        trackGroup,
+        subTopicDescription: selectedDescription,
+        topics: contextTopicItems,
+        roundLabel: nextRound.label,
         trackKey,
         allRounds,
         currentRoundIndex: nextRoundIndex,
@@ -628,6 +770,7 @@ const MCQInterview = () => {
     setCurrentQuestion(0);
     setSelectedAnswers({});
     setScore(0);
+    setCoachFeedback(null);
     setShowResults(false);
     setQuizStarted(false);
     setTimeLeft(null);
@@ -742,7 +885,7 @@ const MCQInterview = () => {
             transition={{ delay: 1 }}
             className="text-lg text-blue-100 leading-relaxed"
           >
-            🌟 <strong>Great choice on {apiTopic}!</strong><br />
+            🌟 <strong>Great choice on {topicBadgeText}!</strong><br />
             Our AI is creating questions tailored just for you.<br />
             Get ready for an amazing learning experience!
           </motion.p>
@@ -785,7 +928,7 @@ const MCQInterview = () => {
               transition={{ delay: 0.3 }}
               className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-800 rounded-full text-lg font-semibold"
             >
-              📚 Selected Topic: {selectedTopic}
+              📚 Selected Topic: {topicBadgeText}
             </motion.div>
           </div>
 
@@ -800,44 +943,93 @@ const MCQInterview = () => {
 
             {/* Topic selection stays scrollable, but full width above controls */}
             <div className="mb-10">
-              <div className="flex items-center justify-between mb-3">
-                <label className="block text-sm font-semibold text-gray-700">
-                  {showSubTopics ? 'Select Specific Topic' : 'Select Main Category'}
-                </label>
-                {showSubTopics && (
-                  <button
-                    onClick={() => { setShowSubTopics(false); setSelectedMainTopic(null); }}
-                    className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
-                  >
-                    ← Back to Categories
-                  </button>
-                )}
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-h-52 overflow-y-auto">
-                {getCurrentTopics().map((topic) => (
-                  <motion.button
-                    key={topic.value}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => {
-                      if (!showSubTopics) { setSelectedMainTopic(topic.value); setShowSubTopics(true); }
-                      else { setQuizConfig({ ...quizConfig, topic: topic.value }); }
-                    }}
-                    className={`p-3 rounded-xl border-2 text-sm transition-all duration-200 ${
-                      (!showSubTopics && selectedMainTopic === topic.value) || (showSubTopics && quizConfig.topic === topic.value)
-                        ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-md'
-                        : 'border-gray-200 bg-white hover:border-gray-300 text-gray-700'
-                    }`}
-                  >
-                    <div className="text-xl mb-1">{topic.icon}</div>
-                    <div className="font-medium leading-tight">{topic.label}</div>
-                  </motion.button>
-                ))}
-              </div>
-              {showSubTopics && quizConfig.topic && (
-                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-center text-green-800 text-sm font-medium">
-                  ✅ Selected: {quizConfig.topic}
+              {hasPracticeContext ? (
+                <div>
+                  <div className="mb-3">
+                    <label className="block text-sm font-semibold text-gray-700">Selected practice context</label>
+                  </div>
+
+                  <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+                    <div className="mb-3 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-wide text-blue-700">
+                      <span className="rounded-full bg-white px-3 py-1">{selectedTrackLabel}</span>
+                      {roundLabel && <span className="rounded-full bg-white px-3 py-1">{roundLabel}</span>}
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900">{quizConfig.topic}</h3>
+                    {selectedDescription && (
+                      <p className="mt-2 text-sm leading-6 text-slate-600">{selectedDescription}</p>
+                    )}
+                  </div>
+
+                  {contextTopicItems.length > 1 && (
+                    <div className="mt-4">
+                      <label className="mb-2 block text-sm font-semibold text-gray-700">Track topics</label>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {contextTopicItems.map((topic) => {
+                          const topicValue = buildPracticeTopic(topic.name);
+                          const isSelected = quizConfig.topic === topicValue;
+
+                          return (
+                            <button
+                              type="button"
+                              key={topic.name}
+                              onClick={() => setQuizConfig({ ...quizConfig, topic: topicValue })}
+                              className={`rounded-lg border p-3 text-left text-sm transition ${
+                                isSelected
+                                  ? 'border-blue-500 bg-white text-blue-800 shadow-sm'
+                                  : 'border-gray-200 bg-white/80 text-gray-700 hover:border-blue-300'
+                              }`}
+                            >
+                              <span className="font-semibold">{topic.name}</span>
+                              {topic.desc && <span className="mt-1 block text-xs text-gray-500">{topic.desc}</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      {showSubTopics ? 'Select Specific Topic' : 'Select Main Category'}
+                    </label>
+                    {showSubTopics && (
+                      <button
+                        onClick={() => { setShowSubTopics(false); setSelectedMainTopic(null); }}
+                        className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
+                      >
+                        ← Back to Categories
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-h-52 overflow-y-auto">
+                    {getCurrentTopics().map((topic) => (
+                      <motion.button
+                        key={topic.value}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          if (!showSubTopics) { setSelectedMainTopic(topic.value); setShowSubTopics(true); }
+                          else { setQuizConfig({ ...quizConfig, topic: topic.value }); }
+                        }}
+                        className={`p-3 rounded-xl border-2 text-sm transition-all duration-200 ${
+                          (!showSubTopics && selectedMainTopic === topic.value) || (showSubTopics && quizConfig.topic === topic.value)
+                            ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-md'
+                            : 'border-gray-200 bg-white hover:border-gray-300 text-gray-700'
+                        }`}
+                      >
+                        <div className="text-xl mb-1">{topic.icon}</div>
+                        <div className="font-medium leading-tight">{topic.label}</div>
+                      </motion.button>
+                    ))}
+                  </div>
+                  {showSubTopics && quizConfig.topic && (
+                    <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-center text-green-800 text-sm font-medium">
+                      ✅ Selected: {quizConfig.topic}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -892,11 +1084,120 @@ const MCQInterview = () => {
   // Results Screen
   if (showResults) {
     const percentage = Math.round((score / questions.length) * 100);
-    const getResultColor = () => {
-      if (percentage >= 80) return 'text-green-600';
-      if (percentage >= 60) return 'text-yellow-600';
-      return 'text-red-600';
-    };
+    const scoreColor = percentage >= 80 ? 'text-emerald-300' : percentage >= 60 ? 'text-amber-300' : 'text-rose-300';
+
+    return (
+      <div className="np-page px-4 py-8">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="mx-auto max-w-5xl"
+        >
+          <div className="np-card-ink p-6">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="mb-3 inline-flex items-center gap-2 rounded-md border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-sm font-semibold text-cyan-100">
+                  <Sparkles className="h-4 w-4" />
+                  MCQ readiness report
+                </p>
+                <h1 className="text-3xl font-bold text-white sm:text-4xl">Interview complete</h1>
+                <p className="mt-3 text-sm text-slate-300">
+                  You scored {score} out of {questions.length} questions correctly.
+                </p>
+              </div>
+              <div className="rounded-md border border-white/10 bg-white/5 px-6 py-5 text-center">
+                <p className="text-sm font-semibold text-slate-300">Score</p>
+                <p className={`mt-2 text-6xl font-bold ${scoreColor}`}>{percentage}%</p>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
+              <div className="rounded-md border border-white/10 bg-white/5 p-5">
+                <CheckCircle2 className="mb-3 h-5 w-5 text-emerald-300" />
+                <div className="text-2xl font-bold text-white">{score}</div>
+                <div className="text-sm text-slate-300">Correct</div>
+              </div>
+              <div className="rounded-md border border-white/10 bg-white/5 p-5">
+                <XCircle className="mb-3 h-5 w-5 text-rose-300" />
+                <div className="text-2xl font-bold text-white">{questions.length - score}</div>
+                <div className="text-sm text-slate-300">Incorrect</div>
+              </div>
+              <div className="rounded-md border border-white/10 bg-white/5 p-5">
+                <Target className="mb-3 h-5 w-5 text-cyan-300" />
+                <div className="text-2xl font-bold text-white">{questions.length}</div>
+                <div className="text-sm text-slate-300">Total questions</div>
+              </div>
+            </div>
+          </div>
+
+          {coachFeedback && (
+            <div className="np-card mt-6 p-6">
+              <div className="mb-5 flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-cyan-600" />
+                <h2 className="text-xl font-bold text-slate-950">AI Coach Recommendation</h2>
+              </div>
+              <p className="mb-5 rounded-md bg-cyan-50 p-4 font-semibold text-cyan-900">{coachFeedback.headline}</p>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div>
+                  <h3 className="mb-3 text-sm font-bold text-emerald-700">Strengths</h3>
+                  <div className="space-y-2">
+                    {coachFeedback.strengths.map((item) => (
+                      <p key={item} className="rounded-md bg-emerald-50 p-3 text-sm text-slate-700">{item}</p>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <h3 className="mb-3 text-sm font-bold text-rose-700">Focus Areas</h3>
+                  <div className="space-y-2">
+                    {coachFeedback.improvements.map((item) => (
+                      <p key={item} className="rounded-md bg-rose-50 p-3 text-sm text-slate-700">{item}</p>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <h3 className="mb-3 text-sm font-bold text-blue-700">Next Steps</h3>
+                  <div className="space-y-2">
+                    {coachFeedback.nextSteps.map((item) => (
+                      <p key={item} className="rounded-md bg-blue-50 p-3 text-sm text-slate-700">{item}</p>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+            <motion.button
+              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={resetQuiz}
+              className="np-button-primary"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Take another quiz
+            </motion.button>
+            <motion.button
+              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => window.history.back()}
+              className="np-button-secondary"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </motion.button>
+            <motion.button
+              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('/dashboard')}
+              className="np-button-secondary"
+            >
+              Dashboard
+              <ArrowRight className="h-4 w-4" />
+            </motion.button>
+          </div>
+        </motion.div>
+      </div>
+    );
 
     const getResultEmoji = () => {
       if (percentage >= 80) return '🎉';
@@ -982,7 +1283,10 @@ const MCQInterview = () => {
             className="bg-blue-600 text-white rounded-xl shadow-lg p-4 mb-4"
           >
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 [&>span.text-2xl]:hidden">
+                <span className="flex h-9 w-9 items-center justify-center rounded-md bg-white/15 text-sm font-bold">
+                  R{currentRoundIndex + 1}
+                </span>
                 <span className="text-2xl">🎯</span>
                 <div>
                   <div className="font-bold text-lg">Round {currentRoundIndex + 1} of {totalRounds}</div>
@@ -1009,12 +1313,16 @@ const MCQInterview = () => {
                 Question {currentQuestion + 1} of {questions.length}
               </div>
               <div className="text-sm font-medium text-blue-600">
+                {quizConfig.topic} / {quizConfig.difficulty}
+              </div>
+              <div className="hidden text-sm font-medium text-blue-600">
                 {quizConfig.topic} • {quizConfig.difficulty}
               </div>
             </div>
-            <div className={`text-sm font-medium px-3 py-1 rounded-full ${
+            <div className={`text-[0px] font-medium px-3 py-1 rounded-full ${
               timeLeft < 120 ? 'bg-red-100 text-red-600' : timeLeft < 300 ? 'bg-yellow-100 text-yellow-600' : 'bg-blue-100 text-blue-600'
             }`}>
+              <span className="text-sm">Time {formatTime(timeLeft || 0)} {timeLeft < 120 ? '(Hurry!)' : ''}</span>
               ⏱️ {formatTime(timeLeft || 0)} {timeLeft < 120 ? '(Hurry!)' : ''}
             </div>
           </div>

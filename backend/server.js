@@ -11,44 +11,17 @@ const http = require("http");
 const { Server } = require("socket.io");
 // Mongoose connection for models
 const mongooseService = require("./services/mongoose.cjs");
+const { getAllowedOrigins, validateEnv } = require("./config/env.cjs");
+const createRateLimiter = require("./middleware/rateLimit.cjs");
 
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
+const envStatus = validateEnv({ strict: process.env.STRICT_ENV_VALIDATION === "true" });
 
-// CORS Configuration with enhanced logging
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:5174",
-  "http://localhost:5175",
-
-  "https://neuro-prep-ai.vercel.app",
-  "https://www.neuro-prep-ai.vercel.app",
-];
-
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      // allow requests with no origin (mobile apps/postman)
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.log("❌ CORS blocked for origin:", origin);
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  }),
-);
-
-app.options('*', cors());
-
-console.log("🌐 CORS Origins configured:", allowedOrigins);
+// CORS Configuration
+const allowedOrigins = getAllowedOrigins();
+console.log("CORS origins configured:", allowedOrigins);
 
 // Socket.IO Configuration
 const io = new Server(server, {
@@ -61,22 +34,22 @@ const io = new Server(server, {
 
 // Socket.IO Connection Handler
 io.on("connection", (socket) => {
-  console.log("🔌 Client connected:", socket.id);
+  console.log("?? Client connected:", socket.id);
 
   // Admin joins interview room to receive updates
   socket.on("admin:join-interview", (interviewId) => {
     socket.join(`interview:${interviewId}`);
-    console.log(`👨‍💼 Admin joined interview room: ${interviewId}`);
+    console.log(`????? Admin joined interview room: ${interviewId}`);
   });
 
   // Admin leaves interview room
   socket.on("admin:leave-interview", (interviewId) => {
     socket.leave(`interview:${interviewId}`);
-    console.log(`👨‍💼 Admin left interview room: ${interviewId}`);
+    console.log(`????? Admin left interview room: ${interviewId}`);
   });
 
   socket.on("disconnect", () => {
-    console.log("🔌 Client disconnected:", socket.id);
+    console.log("?? Client disconnected:", socket.id);
   });
 });
 
@@ -88,13 +61,13 @@ const corsOptions = {
     // Allow requests with no origin (mobile apps, curl, postman)
     if (!origin) return callback(null, true);
 
-    console.log("🔍 CORS request from origin:", origin);
+    console.log("?? CORS request from origin:", origin);
 
     if (allowedOrigins.includes(origin)) {
-      console.log("✅ CORS: Origin allowed");
+      console.log("? CORS: Origin allowed");
       callback(null, true);
     } else {
-      console.log("❌ CORS: Origin blocked");
+      console.log("? CORS: Origin blocked");
       callback(new Error("Not allowed by CORS"));
     }
   },
@@ -111,6 +84,8 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
+app.use("/api", createRateLimiter({ windowMs: 60 * 1000, max: Number(process.env.API_RATE_LIMIT_PER_MINUTE || 180) }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -130,6 +105,10 @@ app.get("/api/health", (req, res) => {
       groqConfigured: aiProvider.isProviderConfigured("groq"),
     },
     corsOrigins: allowedOrigins,
+    env: {
+      ok: envStatus.ok,
+      missing: envStatus.missing,
+    },
     nodeEnv: process.env.NODE_ENV,
   });
 });
@@ -156,7 +135,7 @@ try {
 try {
   const scheduledInterviewRoutes = require("./routes/scheduledInterviews.cjs");
   app.use("/api/admin", scheduledInterviewRoutes);
-  console.log("✅ Scheduled Interview routes mounted at /api/admin");
+  console.log("? Scheduled Interview routes mounted at /api/admin");
 } catch (e) {
   console.warn("Scheduled Interview routes not available:", e.message);
 }
@@ -167,6 +146,38 @@ try {
   app.use("/api/submissions", submissionsRoutes);
 } catch (e) {
   console.warn("Submissions routes not available:", e.message);
+}
+
+// Mount database-backed progress summary and legacy session storage compatibility routes
+try {
+  const progressRoutes = require("./routes/progress.cjs");
+  app.use("/api", progressRoutes);
+} catch (e) {
+  console.warn("Progress routes not available:", e.message);
+}
+
+// Mount persistent Q&A history and analytics routes
+try {
+  const qaRoutes = require("./routes/qa.cjs");
+  app.use("/api", qaRoutes);
+} catch (e) {
+  console.warn("Q&A routes not available:", e.message);
+}
+
+// Mount backend Judge0 proxy so API keys stay server-side
+try {
+  const judge0Routes = require("./routes/judge0.cjs");
+  app.use("/api/judge0", judge0Routes);
+} catch (e) {
+  console.warn("Judge0 routes not available:", e.message);
+}
+
+// Mount resume analyzer routes for ATS, job match, roadmap, and skill-gap interviews
+try {
+  const resumeRoutes = require("./routes/resume.cjs");
+  app.use("/api/resume", resumeRoutes);
+} catch (e) {
+  console.warn("Resume analyzer routes not available:", e.message);
 }
 
 // Mount contests routes (CRUD + problems)
@@ -189,7 +200,7 @@ try {
 try {
   const ollamaInterviewRoutes = require("./routes/ollamaInterview.cjs");
   app.use("/api/ollama", ollamaInterviewRoutes);
-  console.log("✅ Ollama routes mounted at /api/ollama (interviews + MCQ)");
+  console.log("? Ollama routes mounted at /api/ollama (interviews + MCQ)");
 } catch (e) {
   console.warn("Ollama Interview routes not available:", e.message);
 }
@@ -206,7 +217,7 @@ try {
 try {
   const publicInterviewRoutes = require("./routes/publicInterviews.cjs");
   app.use("/api/public", publicInterviewRoutes);
-  console.log("✅ Public Interview routes mounted at /api/public");
+  console.log("? Public Interview routes mounted at /api/public");
 } catch (e) {
   console.warn("Public Interview routes not available:", e.message);
 }
@@ -216,9 +227,9 @@ try {
   const mlRoutes = require("./routes/ml.cjs");
   if (mlRoutes && typeof mlRoutes === "function") {
     app.use("/api/ml", mlRoutes);
-    console.log("✅ ML Service routes mounted at /api/ml");
+    console.log("? ML Service routes mounted at /api/ml");
   } else {
-    console.warn("⚠️ ML routes loaded but not a valid router");
+    console.warn("?? ML routes loaded but not a valid router");
   }
 } catch (e) {
   console.warn("ML routes not available:", e.message);
@@ -230,9 +241,9 @@ try {
   const agenticAIRoutes = require("./routes/agenticAI.cjs");
   if (agenticAIRoutes && typeof agenticAIRoutes === "function") {
     app.use("/api/ai-agent", agenticAIRoutes);
-    console.log("✅ Agentic AI routes mounted at /api/ai-agent");
+    console.log("? Agentic AI routes mounted at /api/ai-agent");
   } else {
-    console.warn("⚠️ Agentic AI routes loaded but not a valid router");
+    console.warn("?? Agentic AI routes loaded but not a valid router");
   }
 } catch (e) {
   console.warn("Agentic AI routes not available:", e.message);
@@ -245,10 +256,10 @@ try {
   if (enhancedAgenticRoutes && typeof enhancedAgenticRoutes === "function") {
     app.use("/api/agentic", enhancedAgenticRoutes);
     console.log(
-      "✅ Enhanced Multi-Agent System routes mounted at /api/agentic",
+      "? Enhanced Multi-Agent System routes mounted at /api/agentic",
     );
   } else {
-    console.warn("⚠️ Enhanced Agentic routes loaded but not a valid router");
+    console.warn("?? Enhanced Agentic routes loaded but not a valid router");
   }
 } catch (e) {
   console.warn("Enhanced Agentic routes not available:", e.message);
@@ -260,9 +271,9 @@ try {
   const avatarRoutes = require("./routes/avatar.cjs");
   if (avatarRoutes && typeof avatarRoutes === "function") {
     app.use("/api/avatar", avatarRoutes);
-    console.log("✅ SadTalker Avatar routes mounted at /api/avatar");
+    console.log("? SadTalker Avatar routes mounted at /api/avatar");
   } else {
-    console.warn("⚠️ Avatar routes loaded but not a valid router");
+    console.warn("?? Avatar routes loaded but not a valid router");
   }
 } catch (e) {
   console.warn("Avatar routes not available:", e.message);
@@ -274,27 +285,27 @@ try {
 mongooseService
   .connect()
   .then(() => {
-    console.log("\n🎯 Md Saif Ali");
-    console.log("✅ MongoDB: Connected");
+    console.log("\n?? Md Saif Ali");
+    console.log("? MongoDB: Connected");
 
     // Start contest status auto-updater
     try {
       const ContestStatusUpdater = require("./services/contestStatusUpdater.cjs");
       ContestStatusUpdater.startPolling(60000); // Update every 60 seconds
-      console.log("✅ Contest Status Updater: Started");
+      console.log("? Contest Status Updater: Started");
     } catch (err) {
-      console.warn("⚠️  Contest Status Updater not available:", err.message);
+      console.warn("??  Contest Status Updater not available:", err.message);
     }
 
     // Start the server once DB is ready
     server.listen(PORT, () => {
-      console.log(`🚀 Server: Running on http://localhost:${PORT}`);
-      console.log(`🔌 Socket.IO: Ready for real-time updates\n`);
+      console.log(`?? Server: Running on http://localhost:${PORT}`);
+      console.log(`?? Socket.IO: Ready for real-time updates\n`);
     });
   })
   .catch((err) => {
     console.error(
-      "❌ MongoDB connection error:",
+      "? MongoDB connection error:",
       err && err.message ? err.message : err,
     );
     console.error("Exiting process since DB connection failed.");
@@ -305,120 +316,20 @@ mongooseService
 // Environment Configuration
 const REQUEST_TIMEOUT = parseInt(process.env.REQUEST_TIMEOUT) || 30000;
 
-// 💾 Q&A STORAGE SYSTEM
-let questionAnswerStorage = {
-  sessions: new Map(),
-  userResponses: new Map(),
-  questionBank: new Map(),
-  analytics: {
-    totalQuestions: 0,
-    totalSessions: 0,
-    topicDistribution: new Map(),
-    difficultyDistribution: new Map(),
-  },
-};
-
-// Store Q&A for analysis and learning
-function storeQuestionAnswer(
-  sessionId,
-  userId,
-  questionData,
-  userAnswer,
-  isCorrect,
-) {
-  const timestamp = new Date().toISOString();
-
-  // Store in session
-  if (!questionAnswerStorage.sessions.has(sessionId)) {
-    questionAnswerStorage.sessions.set(sessionId, {
-      userId,
-      questions: [],
-      startTime: timestamp,
-      topic: questionData.topic,
-      difficulty: questionData.difficulty,
-    });
-    questionAnswerStorage.analytics.totalSessions++;
-  }
-
-  const sessionData = questionAnswerStorage.sessions.get(sessionId);
-  sessionData.questions.push({
-    question: questionData.question,
-    options: questionData.options,
-    correctAnswer: questionData.correctAnswer,
-    userAnswer,
-    isCorrect,
-    explanation: questionData.explanation,
-    answeredAt: timestamp,
-  });
-
-  // Store user responses
-  if (!questionAnswerStorage.userResponses.has(userId)) {
-    questionAnswerStorage.userResponses.set(userId, []);
-  }
-  questionAnswerStorage.userResponses.get(userId).push({
-    sessionId,
-    questionData,
-    userAnswer,
-    isCorrect,
-    timestamp,
-  });
-
-  // Store in question bank for analysis
-  const questionKey = `${questionData.topic}_${questionData.difficulty}_${questionData.question.substring(0, 50)}`;
-  questionAnswerStorage.questionBank.set(questionKey, {
-    ...questionData,
-    timesAsked:
-      (questionAnswerStorage.questionBank.get(questionKey)?.timesAsked || 0) +
-      1,
-    correctRate: calculateCorrectRate(questionKey, isCorrect),
-    lastUsed: timestamp,
-  });
-
-  // Update analytics
-  questionAnswerStorage.analytics.totalQuestions++;
-  const topicCount =
-    questionAnswerStorage.analytics.topicDistribution.get(questionData.topic) ||
-    0;
-  questionAnswerStorage.analytics.topicDistribution.set(
-    questionData.topic,
-    topicCount + 1,
-  );
-  const diffCount =
-    questionAnswerStorage.analytics.difficultyDistribution.get(
-      questionData.difficulty,
-    ) || 0;
-  questionAnswerStorage.analytics.difficultyDistribution.set(
-    questionData.difficulty,
-    diffCount + 1,
-  );
-}
-
-function calculateCorrectRate(questionKey, isCorrect) {
-  // Simple implementation - can be enhanced
-  const existing = questionAnswerStorage.questionBank.get(questionKey);
-  if (!existing) return isCorrect ? 1.0 : 0.0;
-
-  const totalAnswers = existing.timesAsked || 1;
-  const currentCorrectRate = existing.correctRate || 0;
-  const correctAnswers =
-    Math.round(currentCorrectRate * (totalAnswers - 1)) + (isCorrect ? 1 : 0);
-
-  return correctAnswers / totalAnswers;
-}
-
+// Q&A responses are persisted by backend/routes/qa.cjs.
 app.get("/", (req, res) => {
-  res.send("✅ Server is running on Render!");
+  res.send("? Server is running on Render!");
 });
-// 🤖 DIRECT GEMINI MCQ QUESTIONS
+// ?? DIRECT GEMINI MCQ QUESTIONS
 app.post("/api/mcq-questions", async (req, res) => {
   const { topic = "JavaScript", difficulty = "medium", count = 5 } = req.body;
   const sessionId = Date.now() + Math.random().toString(36).substr(2, 9); // Unique session ID
   const timestamp = new Date().toISOString();
 
-  console.log("🎯 =================== MCQ REQUEST ===================");
-  console.log(`📚 Topic: ${topic}, Difficulty: ${difficulty}, Count: ${count}`);
-  console.log(`🆔 Session: ${sessionId}`);
-  console.log(`⏰ Timestamp: ${timestamp}`);
+  console.log("?? =================== MCQ REQUEST ===================");
+  console.log(`?? Topic: ${topic}, Difficulty: ${difficulty}, Count: ${count}`);
+  console.log(`?? Session: ${sessionId}`);
+  console.log(`? Timestamp: ${timestamp}`);
 
   try {
     // Create detailed prompts based on topic and difficulty
@@ -478,8 +389,8 @@ app.post("/api/mcq-questions", async (req, res) => {
 
       return `Generate exactly ${count} COMPLETELY UNIQUE and FRESH multiple choice questions about ${topicInfo} at ${difficulty} difficulty level.
 
-🔄 SESSION: ${sessionId} - GENERATE BRAND NEW QUESTIONS (NOT SEEN BEFORE)
-⏰ TIMESTAMP: ${new Date().toISOString()}
+?? SESSION: ${sessionId} - GENERATE BRAND NEW QUESTIONS (NOT SEEN BEFORE)
+? TIMESTAMP: ${new Date().toISOString()}
 
 ANTI-REPETITION REQUIREMENTS:
 - Each question must be 100% different from any previously generated questions
@@ -527,7 +438,7 @@ CRITICAL REQUIREMENTS:
 
     const prompt = getTopicSpecificPrompt(topic, difficulty, count, sessionId);
 
-    console.log("🚀 Sending request to configured AI provider...");
+    console.log("?? Sending request to configured AI provider...");
     const aiResult = await aiProvider.generateText(prompt, {
       temperature: 0.7,
       maxTokens: 4000,
@@ -536,7 +447,7 @@ CRITICAL REQUIREMENTS:
     });
 
     const aiResponse = aiResult.text;
-    console.log(`📥 Raw AI Response from ${aiResult.source}:`, aiResponse);
+    console.log(`?? Raw AI Response from ${aiResult.source}:`, aiResponse);
 
     if (!aiResponse) {
       throw new Error("No response from AI provider");
@@ -549,9 +460,9 @@ CRITICAL REQUIREMENTS:
       .trim();
 
     const questions = JSON.parse(cleanResponse);
-    console.log("✅ Parsed Questions:", questions);
+    console.log("? Parsed Questions:", questions);
     console.log(
-      `📊 Expected count: ${count}, Actual count: ${questions.length}`,
+      `?? Expected count: ${count}, Actual count: ${questions.length}`,
     );
 
     // Validate question count
@@ -561,7 +472,7 @@ CRITICAL REQUIREMENTS:
 
     if (questions.length !== parseInt(count)) {
       console.log(
-        `⚠️ Question count mismatch! Expected: ${count}, Got: ${questions.length}`,
+        `?? Question count mismatch! Expected: ${count}, Got: ${questions.length}`,
       );
       // If we got fewer questions, pad with variations
       while (questions.length < count && questions.length > 0) {
@@ -577,8 +488,8 @@ CRITICAL REQUIREMENTS:
       }
     }
 
-    console.log(`✅ Final question count: ${questions.length}`);
-    console.log("🎯 ===============================================");
+    console.log(`? Final question count: ${questions.length}`);
+    console.log("?? ===============================================");
 
     res.json({
       success: true,
@@ -592,8 +503,8 @@ CRITICAL REQUIREMENTS:
       },
     });
   } catch (error) {
-    console.error("❌ Error:", error.message);
-    console.log("🎯 ===============================================");
+    console.error("? Error:", error.message);
+    console.log("?? ===============================================");
 
     // If upstream provided a Retry-After, forward it
     // Prefer explicit retryAfter from the error, fall back to upstream body hint
@@ -616,7 +527,7 @@ CRITICAL REQUIREMENTS:
   }
 });
 
-// 🤖 DIRECT GEMINI CODING PROBLEMS
+// ?? DIRECT GEMINI CODING PROBLEMS
 app.post("/api/coding-problems", async (req, res) => {
   const {
     topic = "algorithms",
@@ -625,11 +536,11 @@ app.post("/api/coding-problems", async (req, res) => {
   } = req.body;
   const sessionId = Date.now(); // Simple session tracking
 
-  console.log("🎯 ================ CODING REQUEST ================");
+  console.log("?? ================ CODING REQUEST ================");
   console.log(
-    `💻 Topic: ${topic}, Difficulty: ${difficulty}, Language: ${language}`,
+    `?? Topic: ${topic}, Difficulty: ${difficulty}, Language: ${language}`,
   );
-  console.log(`🆔 Session: ${sessionId}`);
+  console.log(`?? Session: ${sessionId}`);
 
   try {
     // Create detailed coding prompts based on topic and difficulty
@@ -645,7 +556,7 @@ app.post("/api/coding-problems", async (req, res) => {
           instruction:
             "Moderate algorithmic thinking, multiple approaches possible, some optimization required",
           complexity:
-            "may require dynamic programming, trees, or graphs, O(n²) acceptable",
+            "may require dynamic programming, trees, or graphs, O(n^2) acceptable",
           testCases: "4-5 test cases including edge cases",
         },
         hard: {
@@ -737,7 +648,7 @@ CRITICAL REQUIREMENTS:
 
     const prompt = getCodingPrompt(topic, difficulty, language, sessionId);
 
-    console.log("🚀 Sending request to configured AI provider...");
+    console.log("?? Sending request to configured AI provider...");
     const aiResult = await aiProvider.generateText(prompt, {
       temperature: 0.7,
       maxTokens: 4000,
@@ -746,7 +657,7 @@ CRITICAL REQUIREMENTS:
     });
 
     const aiResponse = aiResult.text;
-    console.log(`📥 Raw AI Response from ${aiResult.source}:`, aiResponse);
+    console.log(`?? Raw AI Response from ${aiResult.source}:`, aiResponse);
 
     if (!aiResponse) {
       throw new Error("No response from AI provider");
@@ -758,8 +669,8 @@ CRITICAL REQUIREMENTS:
       .trim();
 
     const problem = JSON.parse(cleanResponse);
-    console.log("✅ Parsed Problem:", problem);
-    console.log("🎯 ===============================================");
+    console.log("? Parsed Problem:", problem);
+    console.log("?? ===============================================");
 
     // Add any additional logging or processing here if needed
     res.json({
@@ -774,8 +685,8 @@ CRITICAL REQUIREMENTS:
       },
     });
   } catch (error) {
-    console.error("❌ Error:", error.message);
-    console.log("🎯 ===============================================");
+    console.error("? Error:", error.message);
+    console.log("?? ===============================================");
 
     const retryAfterHeader =
       error.retryAfter || error.upstreamBody?.retry_after || null;
@@ -795,118 +706,7 @@ CRITICAL REQUIREMENTS:
   }
 });
 
-// Health Check
-app.get("/api/health", (req, res) => {
-  const aiConfig = aiProvider.getConfig();
-  res.json({
-    status: "healthy",
-    ai: {
-      primaryProvider: aiConfig.primaryProvider,
-      providerSequence: aiConfig.providerSequence,
-      geminiConfigured: aiProvider.isProviderConfigured("gemini"),
-      groqConfigured: aiProvider.isProviderConfigured("groq"),
-    },
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// 📊 USER PROGRESS TRACKING ENDPOINTS
-
-// Store MCQ session results
-app.post("/api/store-mcq-session", async (req, res) => {
-  const {
-    userId,
-    topic,
-    difficulty,
-    totalQuestions,
-    correctAnswers,
-    timeSpent,
-    questions,
-    answers,
-  } = req.body;
-
-  console.log("📊 Storing MCQ session for user:", userId);
-
-  try {
-    const sessionData = {
-      userId,
-      type: "mcq",
-      topic,
-      difficulty,
-      totalQuestions,
-      correctAnswers,
-      timeSpent,
-      questions,
-      answers,
-      timestamp: new Date(),
-      accuracy: Math.round((correctAnswers / totalQuestions) * 100),
-    };
-
-    res.json({
-      success: true,
-      message: "MCQ session stored successfully",
-      sessionId: Date.now(),
-      data: sessionData,
-    });
-  } catch (error) {
-    console.error("❌ Error storing MCQ session:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to store MCQ session",
-      details: error.message,
-    });
-  }
-});
-
-// Store coding session results
-app.post("/api/store-coding-session", async (req, res) => {
-  const {
-    userId,
-    topic,
-    difficulty,
-    language,
-    totalProblems,
-    solvedProblems,
-    timeSpent,
-    problems,
-    solutions,
-  } = req.body;
-
-  console.log("💻 Storing coding session for user:", userId);
-
-  try {
-    const sessionData = {
-      userId,
-      type: "coding",
-      topic,
-      difficulty,
-      language,
-      totalProblems,
-      solvedProblems,
-      timeSpent,
-      problems,
-      solutions,
-      timestamp: new Date(),
-      successRate: Math.round((solvedProblems / totalProblems) * 100),
-    };
-
-    res.json({
-      success: true,
-      message: "Coding session stored successfully",
-      sessionId: Date.now(),
-      data: sessionData,
-    });
-  } catch (error) {
-    console.error("❌ Error storing coding session:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to store coding session",
-      details: error.message,
-    });
-  }
-});
-
-// 🤖 AI-POWERED INTERVIEW ASSESSMENT
+// ?? AI-POWERED INTERVIEW ASSESSMENT
 app.post("/api/assess-interview", async (req, res) => {
   const {
     userId,
@@ -919,8 +719,8 @@ app.post("/api/assess-interview", async (req, res) => {
     interviewQuestions,
   } = req.body;
 
-  console.log("🎯 ============= AI INTERVIEW ASSESSMENT =============");
-  console.log(`👤 User: ${userId}, Type: ${interviewType}, Topic: ${topic}`);
+  console.log("?? ============= AI INTERVIEW ASSESSMENT =============");
+  console.log(`?? User: ${userId}, Type: ${interviewType}, Topic: ${topic}`);
 
   try {
     const assessmentPrompt = `Conduct a comprehensive interview assessment for a ${interviewType} interview on ${topic} at ${difficulty} level.
@@ -988,7 +788,7 @@ ASSESSMENT CRITERIA:
 
 Provide constructive, actionable feedback that helps the candidate improve their interview performance.`;
 
-    console.log("🚀 Sending assessment request to configured AI provider...");
+    console.log("?? Sending assessment request to configured AI provider...");
     const aiResult = await aiProvider.generateText(assessmentPrompt, {
       temperature: 0.7,
       maxTokens: 4000,
@@ -997,7 +797,7 @@ Provide constructive, actionable feedback that helps the candidate improve their
     });
 
     const aiResponse = aiResult.text;
-    console.log(`📥 Raw AI Assessment from ${aiResult.source}:`, aiResponse);
+    console.log(`?? Raw AI Assessment from ${aiResult.source}:`, aiResponse);
 
     if (!aiResponse) {
       throw new Error("No assessment response from AI provider");
@@ -1023,8 +823,8 @@ Provide constructive, actionable feedback that helps the candidate improve their
       sessionId: Date.now(),
     };
 
-    console.log("✅ Assessment completed successfully");
-    console.log("🎯 ===============================================");
+    console.log("? Assessment completed successfully");
+    console.log("?? ===============================================");
 
     res.json({
       success: true,
@@ -1033,8 +833,8 @@ Provide constructive, actionable feedback that helps the candidate improve their
       message: "Interview assessment completed successfully",
     });
   } catch (error) {
-    console.error("❌ Assessment Error:", error.message);
-    console.log("🎯 ===============================================");
+    console.error("? Assessment Error:", error.message);
+    console.log("?? ===============================================");
 
     const retryAfterHeader =
       error.retryAfter || error.upstreamBody?.retry_after || null;
@@ -1054,13 +854,13 @@ Provide constructive, actionable feedback that helps the candidate improve their
   }
 });
 
-// 🤖 AI CODE ANALYSIS & CORRECTION
+// ?? AI CODE ANALYSIS & CORRECTION
 app.post("/api/analyze-code", async (req, res) => {
   const { code, language, problem, errors } = req.body;
   const sessionId = Date.now() + Math.random().toString(36).substr(2, 9);
 
-  console.log("🔍 ============= CODE ANALYSIS REQUEST =============");
-  console.log(`💻 Language: ${language}, Session: ${sessionId}`);
+  console.log("?? ============= CODE ANALYSIS REQUEST =============");
+  console.log(`?? Language: ${language}, Session: ${sessionId}`);
 
   try {
     const analysisPrompt = `You are an expert code reviewer and debugging assistant. Analyze the following code and provide comprehensive feedback.
@@ -1098,7 +898,7 @@ Please provide a detailed analysis in the following JSON format:
     {
       "type": "performance",
       "description": "Use more efficient algorithm",
-      "current": "O(n²) complexity",
+      "current": "O(n^2) complexity",
       "suggested": "O(n log n) with sorting"
     },
     {
@@ -1135,7 +935,7 @@ ANALYSIS GUIDELINES:
 - Consider performance, readability, and maintainability`;
 
     console.log(
-      "🚀 Sending code analysis request to configured AI provider...",
+      "?? Sending code analysis request to configured AI provider...",
     );
     const aiResult = await aiProvider.generateText(analysisPrompt, {
       temperature: 0.7,
@@ -1145,7 +945,7 @@ ANALYSIS GUIDELINES:
     });
 
     const aiResponse = aiResult.text;
-    console.log(`📥 Raw AI Code Analysis from ${aiResult.source}:`, aiResponse);
+    console.log(`?? Raw AI Code Analysis from ${aiResult.source}:`, aiResponse);
 
     if (!aiResponse) {
       throw new Error("No analysis response from AI provider");
@@ -1158,8 +958,8 @@ ANALYSIS GUIDELINES:
       .trim();
     const analysis = JSON.parse(cleanResponse);
 
-    console.log("✅ Code analysis completed successfully");
-    console.log("🎯 ===============================================");
+    console.log("? Code analysis completed successfully");
+    console.log("?? ===============================================");
 
     res.json({
       success: true,
@@ -1172,8 +972,8 @@ ANALYSIS GUIDELINES:
       },
     });
   } catch (error) {
-    console.error("❌ Code Analysis Error:", error.message);
-    console.log("🎯 ===============================================");
+    console.error("? Code Analysis Error:", error.message);
+    console.log("?? ===============================================");
 
     const retryAfterHeader =
       error.retryAfter || error.upstreamBody?.retry_after || null;
@@ -1193,49 +993,6 @@ ANALYSIS GUIDELINES:
   }
 });
 
-// Get user progress summary
-app.get("/api/user-progress/:userId", async (req, res) => {
-  const { userId } = req.params;
-  const { timeframe = "all" } = req.query;
-
-  console.log(
-    `📊 Fetching progress for user: ${userId}, timeframe: ${timeframe}`,
-  );
-
-  try {
-    // In a real implementation, this would fetch from database
-    // For now, return mock structure that frontend expects
-    const mockProgress = {
-      totalMCQAttempts: 0,
-      totalCodingAttempts: 0,
-      totalFaceToFaceInterviews: 0,
-      mcqAccuracy: 0,
-      codingSuccess: 0,
-      recentActivity: [],
-      topicProgress: [],
-      difficultyProgress: [],
-      monthlyProgress: [],
-      overallRating: 0,
-      strengths: [],
-      improvements: [],
-      recommendations: [],
-    };
-
-    res.json({
-      success: true,
-      progress: mockProgress,
-      message: "User progress retrieved successfully",
-    });
-  } catch (error) {
-    console.error("❌ Error fetching user progress:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch user progress",
-      details: error.message,
-    });
-  }
-});
-
 // Existing Codeforces proxy (keep this)
 app.get("/fetchProblem", async (req, res) => {
   const { contestId, index } = req.query;
@@ -1249,174 +1006,6 @@ app.get("/fetchProblem", async (req, res) => {
     res.status(500).send("Failed to fetch problem details");
   }
 });
-
-// 💾 Q&A STORAGE ENDPOINTS
-
-// Store user's question response
-app.post("/api/store-qa", async (req, res) => {
-  const { sessionId, userId, questionData, userAnswer, isCorrect } = req.body;
-
-  console.log(
-    `💾 Storing Q&A: Session ${sessionId}, User ${userId}, Correct: ${isCorrect}`,
-  );
-
-  try {
-    storeQuestionAnswer(sessionId, userId, questionData, userAnswer, isCorrect);
-
-    res.json({
-      success: true,
-      message: "Q&A stored successfully",
-      analytics: {
-        totalQuestions: questionAnswerStorage.analytics.totalQuestions,
-        totalSessions: questionAnswerStorage.analytics.totalSessions,
-      },
-    });
-  } catch (error) {
-    console.error("❌ Error storing Q&A:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to store Q&A data",
-    });
-  }
-});
-
-// Get user's Q&A history
-app.get("/api/qa-history/:userId", (req, res) => {
-  const { userId } = req.params;
-  const { limit = 50 } = req.query;
-
-  console.log(`📚 Fetching Q&A history for user: ${userId}`);
-
-  try {
-    const userHistory = questionAnswerStorage.userResponses.get(userId) || [];
-    const limitedHistory = userHistory.slice(-parseInt(limit));
-
-    res.json({
-      success: true,
-      history: limitedHistory,
-      totalQuestions: userHistory.length,
-      accuracy: calculateUserAccuracy(userId),
-    });
-  } catch (error) {
-    console.error("❌ Error fetching Q&A history:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch Q&A history",
-    });
-  }
-});
-
-// Get session details
-app.get("/api/session/:sessionId", (req, res) => {
-  const { sessionId } = req.params;
-
-  console.log(`🔍 Fetching session details: ${sessionId}`);
-
-  try {
-    const sessionData = questionAnswerStorage.sessions.get(sessionId);
-
-    if (!sessionData) {
-      return res.status(404).json({
-        success: false,
-        error: "Session not found",
-      });
-    }
-
-    res.json({
-      success: true,
-      session: sessionData,
-      analytics: calculateSessionAnalytics(sessionData),
-    });
-  } catch (error) {
-    console.error("❌ Error fetching session:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch session data",
-    });
-  }
-});
-
-// Get Q&A analytics
-app.get("/api/qa-analytics", (req, res) => {
-  console.log("📊 Fetching Q&A analytics");
-
-  try {
-    const analytics = {
-      ...questionAnswerStorage.analytics,
-      topicDistribution: Object.fromEntries(
-        questionAnswerStorage.analytics.topicDistribution,
-      ),
-      difficultyDistribution: Object.fromEntries(
-        questionAnswerStorage.analytics.difficultyDistribution,
-      ),
-      questionBank: {
-        totalUniqueQuestions: questionAnswerStorage.questionBank.size,
-        averageCorrectRate: calculateAverageCorrectRate(),
-      },
-    };
-
-    res.json({
-      success: true,
-      analytics,
-    });
-  } catch (error) {
-    console.error("❌ Error fetching analytics:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch analytics",
-    });
-  }
-});
-
-function calculateUserAccuracy(userId) {
-  const userHistory = questionAnswerStorage.userResponses.get(userId) || [];
-  if (userHistory.length === 0) return 0;
-
-  const correctAnswers = userHistory.filter(
-    (response) => response.isCorrect,
-  ).length;
-  return (correctAnswers / userHistory.length) * 100;
-}
-
-function calculateSessionAnalytics(sessionData) {
-  const totalQuestions = sessionData.questions.length;
-  const correctAnswers = sessionData.questions.filter(
-    (q) => q.isCorrect,
-  ).length;
-  const accuracy =
-    totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
-
-  return {
-    totalQuestions,
-    correctAnswers,
-    accuracy,
-    topic: sessionData.topic,
-    difficulty: sessionData.difficulty,
-    duration: calculateSessionDuration(sessionData),
-  };
-}
-
-function calculateSessionDuration(sessionData) {
-  if (sessionData.questions.length === 0) return 0;
-
-  const startTime = new Date(sessionData.startTime);
-  const lastAnswerTime = new Date(
-    sessionData.questions[sessionData.questions.length - 1].answeredAt,
-  );
-
-  return Math.round((lastAnswerTime - startTime) / 1000); // Duration in seconds
-}
-
-function calculateAverageCorrectRate() {
-  const allQuestions = Array.from(questionAnswerStorage.questionBank.values());
-  if (allQuestions.length === 0) return 0;
-
-  const totalCorrectRate = allQuestions.reduce(
-    (sum, q) => sum + (q.correctRate || 0),
-    0,
-  );
-  return (totalCorrectRate / allQuestions.length) * 100;
-}
 
 // NOTE: server is started inside mongooseService.connect() above so we only run
 // when the DB is available.

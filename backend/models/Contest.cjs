@@ -30,15 +30,15 @@ const contestSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Problem'
   }],
-  // Participants with user details from Supabase auth
+  // Participants with user details from Firebase auth
   participants: [{
     userId: {
-      type: String,  // Supabase user ID
+      type: String,  // Firebase UID
       required: true
     },
     email: {
-      type: String,  // Email from Supabase auth
-      required: true
+      type: String,
+      default: ''
     },
     displayName: {
       type: String,

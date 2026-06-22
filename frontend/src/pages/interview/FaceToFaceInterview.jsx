@@ -12,6 +12,45 @@ import axios from 'axios';
 // Backend API Configuration (Ollama-powered)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
+const roleOptions = [
+  'Software Engineer',
+  'Frontend Developer',
+  'Backend Developer',
+  'Full Stack Developer',
+  'Data Scientist',
+  'DevOps Engineer',
+  'Cybersecurity Analyst',
+  'Product Manager',
+  'UI/UX Designer',
+  'QA Engineer'
+];
+
+const topicOptions = [
+  'Software Engineering',
+  'Data Structures & Algorithms',
+  'System Design',
+  'React',
+  'Node.js',
+  'Python',
+  'JavaScript',
+  'Databases',
+  'Machine Learning',
+  'Cloud Computing'
+];
+
+const durationOptions = [3, 5, 10, 15, 20, 30];
+const questionCountOptions = [3, 5, 7, 10];
+
+const clampNumber = (value, min, max, fallback) => {
+  const parsed = parseInt(value, 10);
+  if (Number.isNaN(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+};
+
+const normalizeDifficulty = (value) => (
+  ['easy', 'medium', 'hard'].includes(value) ? value : 'medium'
+);
+
 const FaceToFaceInterview = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -28,32 +67,44 @@ const FaceToFaceInterview = () => {
   const scheduledInterview = location.state?.scheduledInterview || null;
   const isScheduledInterview = scheduledInterview?.isScheduled || false;
 
-  // Interview Configuration - Extract topic from location.state or use scheduled interview data
-  const interviewConfig = scheduledInterview ? {
-    topic: scheduledInterview.interviewType === 'company-based' 
-      ? `${scheduledInterview.companyName} Interview`
-      : scheduledInterview.topics.join(', '),
-    difficulty: scheduledInterview.difficulty || 'medium',
-    duration: scheduledInterview.duration || 3,
-    interviewType: 'face-to-face',
-    jobRole: scheduledInterview.companyName || scheduledInterview.topics[0] || 'General',
-    subTopicDescription: scheduledInterview.interviewType === 'company-based'
-      ? `Company-based interview for ${scheduledInterview.companyName}`
-      : `Topic-based interview on: ${scheduledInterview.topics.join(', ')}`,
-    numberOfQuestions: scheduledInterview.numberOfQuestions || 3,
-    scheduledInterviewId: scheduledInterview.scheduledInterviewId,
-    interviewId: urlInterviewId || scheduledInterview.interviewId,
-    interviewName: scheduledInterview.interviewName
-  } : {
-    topic: location.state?.subject || location.state?.topic || location.state?.jobRole || 'Software Engineering',
-    difficulty: location.state?.difficulty || 'medium',
-    duration: 3, // 3-minute quick interview
-    interviewType: 'face-to-face',
-    jobRole: location.state?.jobRole || 'Software Engineer',
-    subTopicDescription: location.state?.subTopicDescription || '',
-    numberOfQuestions: 3,
-    interviewId: urlInterviewId || location.state?.interviewId
-  };
+  // Interview Configuration - Extract topic from navigation state or scheduled interview data.
+  const baseInterviewConfig = React.useMemo(() => {
+    if (scheduledInterview) {
+      return {
+        topic: scheduledInterview.interviewType === 'company-based'
+          ? `${scheduledInterview.companyName} Interview`
+          : scheduledInterview.topics.join(', '),
+        difficulty: normalizeDifficulty(scheduledInterview.difficulty || 'medium'),
+        duration: clampNumber(scheduledInterview.duration, 1, 120, 3),
+        interviewType: 'face-to-face',
+        jobRole: scheduledInterview.companyName || scheduledInterview.topics[0] || 'General',
+        subTopicDescription: scheduledInterview.interviewType === 'company-based'
+          ? `Company-based interview for ${scheduledInterview.companyName}`
+          : `Topic-based interview on: ${scheduledInterview.topics.join(', ')}`,
+        numberOfQuestions: clampNumber(scheduledInterview.numberOfQuestions, 1, 10, 3),
+        scheduledInterviewId: scheduledInterview.scheduledInterviewId,
+        interviewId: urlInterviewId || scheduledInterview.interviewId,
+        interviewName: scheduledInterview.interviewName
+      };
+    }
+
+    return {
+      topic: location.state?.topic || location.state?.subject || location.state?.jobRole || 'Software Engineering',
+      difficulty: normalizeDifficulty(location.state?.difficulty || 'medium'),
+      duration: clampNumber(location.state?.duration, 1, 120, 5),
+      interviewType: 'face-to-face',
+      jobRole: location.state?.jobRole || 'Software Engineer',
+      subTopicDescription: location.state?.subTopicDescription || '',
+      numberOfQuestions: clampNumber(location.state?.numberOfQuestions, 1, 10, 5),
+      interviewId: urlInterviewId || location.state?.interviewId,
+      trackKey: location.state?.trackKey,
+      roundId: location.state?.roundId,
+      roundNumber: location.state?.roundNumber
+    };
+  }, [scheduledInterview, location.state, urlInterviewId]);
+
+  const [editableInterviewConfig, setEditableInterviewConfig] = useState(baseInterviewConfig);
+  const interviewConfig = isScheduledInterview ? baseInterviewConfig : editableInterviewConfig;
 
   // Core State Management
   const [interviewPhase, setInterviewPhase] = useState('setup'); // setup, interview, assessment, completed
@@ -76,6 +127,33 @@ const FaceToFaceInterview = () => {
   const [compilerRequired, setCompilerRequired] = useState(false);
   const [showCompiler, setShowCompiler] = useState(false);
   const [code, setCode] = useState('// Write your code here\n');
+
+  useEffect(() => {
+    if (interviewPhase !== 'setup') return;
+    setEditableInterviewConfig(baseInterviewConfig);
+    setTimeRemaining(baseInterviewConfig.duration * 60);
+  }, [baseInterviewConfig, interviewPhase]);
+
+  const updateInterviewConfig = (field, value) => {
+    if (isScheduledInterview) return;
+
+    setEditableInterviewConfig(prev => {
+      const next = { ...prev };
+
+      if (field === 'duration') {
+        next.duration = clampNumber(value, 1, 120, prev.duration || 5);
+        setTimeRemaining(next.duration * 60);
+      } else if (field === 'numberOfQuestions') {
+        next.numberOfQuestions = clampNumber(value, 1, 10, prev.numberOfQuestions || 5);
+      } else if (field === 'difficulty') {
+        next.difficulty = normalizeDifficulty(value);
+      } else {
+        next[field] = value;
+      }
+
+      return next;
+    });
+  };
 
   // Initialize Speech Recognition and Synthesis
   useEffect(() => {
@@ -189,22 +267,26 @@ const FaceToFaceInterview = () => {
   const generateQuestions = async () => {
     try {
       toast.info('🤖 Generating interview questions with AI...');
+      const selectedRole = (interviewConfig.jobRole || '').trim() || 'General Interview Candidate';
+      const selectedTopic = (interviewConfig.topic || '').trim() || selectedRole;
       
       console.log('🚀 Starting interview session...');
       console.log('📋 Interview Config:', {
         userId: user?.uid || 'guest',
-        role: interviewConfig.jobRole || interviewConfig.topic,
+        role: selectedRole,
         difficulty: interviewConfig.difficulty,
-        topic: interviewConfig.topic
+        topic: selectedTopic
       });
       
       // Start interview session
       const startResponse = await axios.post(`${API_BASE_URL}/api/interview/start`, {
         userId: user?.uid || 'guest',
-        role: interviewConfig.jobRole || interviewConfig.topic,
+        role: selectedRole,
         difficulty: interviewConfig.difficulty || 'medium',
-        topic: interviewConfig.topic,
-        totalQuestions: interviewConfig.numberOfQuestions || 3 // Use configured number of questions
+        topic: selectedTopic,
+        totalQuestions: interviewConfig.numberOfQuestions || 3,
+        duration: interviewConfig.duration,
+        variationSeed: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
       });
 
       if (!startResponse.data.success) {
@@ -480,7 +562,7 @@ const FaceToFaceInterview = () => {
     try {
       setIsEvaluating(true); // Show "Evaluating..." message
       setAvatarExpression('thinking');
-      setAvatarFeedback('� Analyzing your answer with AI... This may take a few seconds.');
+      setAvatarFeedback('Analyzing your answer with AI... This may take a few seconds.');
       
       // Show toast notification
       const toastId = toast.info('🤖 AI is evaluating your answer using Ollama model...', {
@@ -942,6 +1024,12 @@ const FaceToFaceInterview = () => {
 
   // Start Interview
   const startInterview = async () => {
+    if (!interviewConfig.jobRole?.trim() || !interviewConfig.topic?.trim()) {
+      toast.error('Please enter both a role and a topic before starting.');
+      return;
+    }
+
+    setTimeRemaining(interviewConfig.duration * 60);
     setInterviewPhase('interview');
     
     toast.success('Interview starting... Generating questions...');
@@ -961,7 +1049,8 @@ const FaceToFaceInterview = () => {
       
       // Start with welcome message
       setTimeout(() => {
-        speakText(`Welcome to your ${interviewConfig.topic} interview! I'll be asking you ${generatedQuestions.length} questions over the next 3 minutes. Let's begin with the first question: ${generatedQuestions[0].question}`, 'happy');
+        const minuteLabel = `${interviewConfig.duration} minute${interviewConfig.duration === 1 ? '' : 's'}`;
+        speakText(`Welcome to your ${interviewConfig.topic} interview for the ${interviewConfig.jobRole} role. I'll be asking you ${generatedQuestions.length} questions over the next ${minuteLabel}. Let's begin with the first question: ${generatedQuestions[0].question}`, 'happy');
       }, 1000);
     }
   };
@@ -1102,7 +1191,7 @@ const FaceToFaceInterview = () => {
                   Face-to-Face AI Interview
                 </h1>
                 <p className="text-slate-600 text-lg mb-3">
-                  Quick 3-minute interview with AI-powered assessment and readiness signals.
+                  Configure your role, topic, level, and timing before the AI interview starts.
                 </p>
                 {interviewConfig.subTopicDescription && (
                   <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mt-3 max-w-md mx-auto">
@@ -1114,28 +1203,99 @@ const FaceToFaceInterview = () => {
               <div className="grid gap-4 mb-8 md:grid-cols-2">
                 <div className="bg-slate-50 p-5 rounded-lg border border-slate-200">
                   <h3 className="font-semibold text-slate-950 mb-3 flex items-center">
-                    <span className="mr-2">📋</span> Interview Details
+                    <span className="mr-2">📋</span> Interview Setup
                   </h3>
-                  <div className="space-y-3 text-sm">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-700">Topic:</span>
-                      <span className="font-semibold text-blue-700">{interviewConfig.topic}</span>
-                    </div>
-                    {interviewConfig.jobRole && interviewConfig.jobRole !== interviewConfig.topic && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-700">Role:</span>
-                        <span className="font-semibold text-blue-700">{interviewConfig.jobRole}</span>
+                  {isScheduledInterview ? (
+                    <div className="space-y-3 text-sm">
+                      <div className="flex justify-between items-center gap-4">
+                        <span className="text-gray-700">Topic:</span>
+                        <span className="text-right font-semibold text-blue-700">{interviewConfig.topic}</span>
                       </div>
-                    )}
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-700">Difficulty:</span>
-                      <span className="font-semibold text-green-700 capitalize">{interviewConfig.difficulty}</span>
+                      {interviewConfig.jobRole && interviewConfig.jobRole !== interviewConfig.topic && (
+                        <div className="flex justify-between items-center gap-4">
+                          <span className="text-gray-700">Role:</span>
+                          <span className="text-right font-semibold text-blue-700">{interviewConfig.jobRole}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center gap-4">
+                        <span className="text-gray-700">Difficulty:</span>
+                        <span className="font-semibold text-green-700 capitalize">{interviewConfig.difficulty}</span>
+                      </div>
+                      <div className="flex justify-between items-center gap-4">
+                        <span className="text-gray-700">Duration:</span>
+                        <span className="font-semibold text-blue-700">{interviewConfig.duration} minutes</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-700">Duration:</span>
-                      <span className="font-semibold text-blue-700">3 minutes</span>
+                  ) : (
+                    <div className="grid gap-4">
+                      <label className="block text-sm font-semibold text-slate-700">
+                        Role
+                        <input
+                          value={interviewConfig.jobRole}
+                          onChange={(event) => updateInterviewConfig('jobRole', event.target.value)}
+                          list="face-role-options"
+                          className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                        />
+                      </label>
+                      <datalist id="face-role-options">
+                        {roleOptions.map((role) => <option key={role} value={role} />)}
+                      </datalist>
+
+                      <label className="block text-sm font-semibold text-slate-700">
+                        Topic
+                        <input
+                          value={interviewConfig.topic}
+                          onChange={(event) => updateInterviewConfig('topic', event.target.value)}
+                          list="face-topic-options"
+                          className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                        />
+                      </label>
+                      <datalist id="face-topic-options">
+                        {topicOptions.map((topic) => <option key={topic} value={topic} />)}
+                      </datalist>
+
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <label className="block text-sm font-semibold text-slate-700">
+                          Difficulty
+                          <select
+                            value={interviewConfig.difficulty}
+                            onChange={(event) => updateInterviewConfig('difficulty', event.target.value)}
+                            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm capitalize text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                          >
+                            <option value="easy">Easy</option>
+                            <option value="medium">Medium</option>
+                            <option value="hard">Hard</option>
+                          </select>
+                        </label>
+
+                        <label className="block text-sm font-semibold text-slate-700">
+                          Duration
+                          <select
+                            value={interviewConfig.duration}
+                            onChange={(event) => updateInterviewConfig('duration', event.target.value)}
+                            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                          >
+                            {Array.from(new Set([...durationOptions, interviewConfig.duration])).sort((a, b) => a - b).map((minutes) => (
+                              <option key={minutes} value={minutes}>{minutes} min</option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="block text-sm font-semibold text-slate-700">
+                          Questions
+                          <select
+                            value={interviewConfig.numberOfQuestions}
+                            onChange={(event) => updateInterviewConfig('numberOfQuestions', event.target.value)}
+                            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                          >
+                            {Array.from(new Set([...questionCountOptions, interviewConfig.numberOfQuestions])).sort((a, b) => a - b).map((count) => (
+                              <option key={count} value={count}>{count}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <div className="bg-slate-950 p-5 rounded-lg border border-slate-800 text-white">

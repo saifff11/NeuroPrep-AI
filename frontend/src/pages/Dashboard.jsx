@@ -1,168 +1,352 @@
-// USER PROGRESS DASHBOARD - COMPREHENSIVE TRACKING SYSTEM
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer,
-  PieChart,
-  Pie,
+import {
+  Activity,
+  ArrowRight,
+  BarChart3,
+  Brain,
+  CalendarClock,
+  CheckCircle2,
+  Code2,
+  FileText,
+  Flame,
+  LineChart as LineChartIcon,
+  MessageSquareText,
+  RefreshCw,
+  Sparkles,
+  Target,
+  Trophy,
+  ShieldCheck,
+  Zap
+} from 'lucide-react';
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
   Cell,
-  LineChart,
-  Line
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
 } from 'recharts';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
+const emptyDashboard = {
+  totalMCQAttempts: 0,
+  totalCodingAttempts: 0,
+  totalFaceToFaceInterviews: 0,
+  mcqAccuracy: 0,
+  codingSuccess: 0,
+  overallScore: 0,
+  totalMinutes: 0,
+  answeredQuestions: 0,
+  streakDays: 0,
+  recentActivity: [],
+  topicProgress: [],
+  monthlyProgress: [],
+  difficultyProgress: [],
+  strengths: [],
+  improvements: [],
+  recommendations: [],
+  bestTopic: null,
+  focusTopic: null,
+  practiceMix: [],
+  typeScores: { mcq: 0, coding: 0, interview: 0 },
+  latestResumeAnalysis: null,
+  placementReadiness: {
+    overallScore: 0,
+    scores: { coding: 0, mcq: 0, interview: 0, resume: 0 },
+    suggestedFocus: [],
+    status: 'Needs consistent practice',
+    latestResume: null
+  }
+};
+
+const typeMeta = {
+  mcq: { label: 'MCQ', icon: Brain, color: '#2563eb', bg: 'bg-blue-50', text: 'text-blue-700' },
+  coding: { label: 'Coding', icon: Code2, color: '#059669', bg: 'bg-emerald-50', text: 'text-emerald-700' },
+  'face-to-face': { label: 'Face-to-Face', icon: MessageSquareText, color: '#7c3aed', bg: 'bg-violet-50', text: 'text-violet-700' }
+};
+
+const formatDate = (value) => {
+  if (!value) return 'Today';
+  const date = value?.toDate ? value.toDate() : new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Today';
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const normalizeType = (session) => {
+  const raw = String(session?.interviewType || session?.type || '').toLowerCase();
+  if (raw.includes('mcq')) return 'mcq';
+  if (raw.includes('coding') || raw.includes('code')) return 'coding';
+  return 'face-to-face';
+};
+
+const scoreFromSession = (session) => {
+  const assessment = session?.assessment || {};
+  if (Number.isFinite(assessment.overallScore)) return Number(assessment.overallScore);
+  if (Number.isFinite(assessment.overallRating)) return Number(assessment.overallRating) * 2;
+  if (Number.isFinite(assessment.percentage)) return Number(assessment.percentage) / 10;
+  return 0;
+};
+
+const correctFromSession = (session) => {
+  if (Number.isFinite(session?.correctAnswers)) return Number(session.correctAnswers);
+  const answers = Array.isArray(session?.answers) ? session.answers : [];
+  const answerCorrect = answers.filter((answer) => answer?.isCorrect).length;
+  if (answerCorrect > 0) return answerCorrect;
+  const total = Number(session?.totalQuestions || 0);
+  return Math.round((scoreFromSession(session) / 10) * total);
+};
+
+const normalizeSession = (session) => {
+  const type = normalizeType(session);
+  const totalQuestions = Number(session?.totalQuestions || session?.questions?.length || 0);
+  const correctAnswers = correctFromSession(session);
+
+  return {
+    id: session?.sessionId || session?._id || `${type}-${session?.createdAt || Date.now()}`,
+    type,
+    topic: session?.topic || 'General Interview',
+    difficulty: session?.difficulty || 'medium',
+    totalQuestions,
+    correctAnswers,
+    answeredQuestions: Number(session?.answeredQuestions || session?.answers?.length || totalQuestions || 0),
+    timeSpent: Number(session?.timeSpent || 0),
+    timestamp: session?.createdAt || session?.endTime || session?.startTime || new Date().toISOString(),
+    assessment: session?.assessment || {},
+    score: scoreFromSession(session)
+  };
+};
+
+const applyTimeframe = (sessions, timeframe) => {
+  if (timeframe === 'all') return sessions;
+  const days = timeframe === '7d' ? 7 : timeframe === '30d' ? 30 : 90;
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  return sessions.filter((session) => new Date(session.timestamp).getTime() >= cutoff);
+};
+
+const generateMonthlyProgress = (sessions) => {
+  const monthlyData = {};
+  const last6Months = [];
+  const now = new Date();
+
+  for (let i = 5; i >= 0; i -= 1) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = date.toISOString().slice(0, 7);
+    monthlyData[key] = { mcq: 0, coding: 0, faceToFace: 0, score: 0, scored: 0 };
+    last6Months.push(key);
+  }
+
+  sessions.forEach((session) => {
+    const date = new Date(session.timestamp);
+    if (Number.isNaN(date.getTime())) return;
+    const key = date.toISOString().slice(0, 7);
+    if (!monthlyData[key]) return;
+
+    if (session.type === 'mcq') monthlyData[key].mcq += 1;
+    if (session.type === 'coding') monthlyData[key].coding += 1;
+    if (session.type === 'face-to-face') monthlyData[key].faceToFace += 1;
+    if (session.score > 0) {
+      monthlyData[key].score += session.score;
+      monthlyData[key].scored += 1;
+    }
+  });
+
+  return last6Months.map((month) => ({
+    month: new Date(`${month}-01`).toLocaleDateString('en-US', { month: 'short' }),
+    MCQ: monthlyData[month].mcq,
+    Coding: monthlyData[month].coding,
+    FaceToFace: monthlyData[month].faceToFace,
+    Score: monthlyData[month].scored ? Math.round((monthlyData[month].score / monthlyData[month].scored) * 10) / 10 : 0
+  }));
+};
+
+const calculateStreak = (sessions) => {
+  const days = new Set(
+    sessions
+      .map((session) => new Date(session.timestamp))
+      .filter((date) => !Number.isNaN(date.getTime()))
+      .map((date) => date.toISOString().slice(0, 10))
+  );
+
+  let streak = 0;
+  const cursor = new Date();
+  while (days.has(cursor.toISOString().slice(0, 10))) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+};
+
+const processProgressData = (rawSessions, timeframe) => {
+  const normalized = applyTimeframe(rawSessions.map(normalizeSession), timeframe);
+  if (normalized.length === 0) return { ...emptyDashboard, monthlyProgress: generateMonthlyProgress([]) };
+
+  const mcqSessions = normalized.filter((session) => session.type === 'mcq');
+  const codingSessions = normalized.filter((session) => session.type === 'coding');
+  const faceSessions = normalized.filter((session) => session.type === 'face-to-face');
+  const totalMCQQuestions = mcqSessions.reduce((sum, session) => sum + session.totalQuestions, 0);
+  const correctMCQAnswers = mcqSessions.reduce((sum, session) => sum + session.correctAnswers, 0);
+  const scoredSessions = normalized.filter((session) => session.score > 0);
+
+  const topicStats = normalized.reduce((stats, session) => {
+    const key = session.topic;
+    stats[key] ||= { topic: key, attempts: 0, score: 0, questions: 0, correct: 0 };
+    stats[key].attempts += 1;
+    stats[key].score += session.score || (session.totalQuestions ? (session.correctAnswers / session.totalQuestions) * 10 : 0);
+    stats[key].questions += session.totalQuestions;
+    stats[key].correct += session.correctAnswers;
+    return stats;
+  }, {});
+
+  const topicProgress = Object.values(topicStats)
+    .map((topic) => ({
+      topic: topic.topic,
+      attempts: topic.attempts,
+      successRate: Math.round(topic.attempts ? (topic.score / topic.attempts) * 10 : 0),
+      accuracy: topic.questions ? Math.round((topic.correct / topic.questions) * 100) : 0
+    }))
+    .sort((a, b) => b.attempts - a.attempts)
+    .slice(0, 8);
+
+  const sortedByScore = [...topicProgress].filter((topic) => topic.attempts > 0).sort((a, b) => b.successRate - a.successRate);
+  const allStrengths = normalized.flatMap((session) => session.assessment?.strengths || []);
+  const allImprovements = normalized.flatMap((session) => session.assessment?.improvements || session.assessment?.areasForImprovement || []);
+  const allRecommendations = normalized.flatMap((session) => session.assessment?.recommendations || session.assessment?.nextSteps || []);
+
+  return {
+    totalMCQAttempts: mcqSessions.length,
+    totalCodingAttempts: codingSessions.length,
+    totalFaceToFaceInterviews: faceSessions.length,
+    mcqAccuracy: totalMCQQuestions ? Math.round((correctMCQAnswers / totalMCQQuestions) * 100) : 0,
+    codingSuccess: codingSessions.length ? Math.round((codingSessions.filter((session) => session.score >= 6).length / codingSessions.length) * 100) : 0,
+    overallScore: scoredSessions.length ? Math.round((scoredSessions.reduce((sum, session) => sum + session.score, 0) / scoredSessions.length) * 10) / 10 : 0,
+    totalMinutes: Math.round(normalized.reduce((sum, session) => sum + session.timeSpent, 0) / 60),
+    answeredQuestions: normalized.reduce((sum, session) => sum + session.answeredQuestions, 0),
+    streakDays: calculateStreak(normalized),
+    recentActivity: normalized.slice(0, 6),
+    topicProgress,
+    monthlyProgress: generateMonthlyProgress(normalized),
+    difficultyProgress: ['easy', 'medium', 'hard'].map((level) => ({
+      level: level.charAt(0).toUpperCase() + level.slice(1),
+      count: normalized.filter((session) => session.difficulty?.toLowerCase() === level).length
+    })),
+    strengths: [...new Set(allStrengths)].slice(0, 4),
+    improvements: [...new Set(allImprovements)].slice(0, 4),
+    recommendations: [...new Set(allRecommendations)].slice(0, 4),
+    bestTopic: sortedByScore[0] || null,
+    focusTopic: sortedByScore[sortedByScore.length - 1] || null,
+    practiceMix: [
+      { name: 'MCQ', value: mcqSessions.length, color: typeMeta.mcq.color },
+      { name: 'Coding', value: codingSessions.length, color: typeMeta.coding.color },
+      { name: 'Face-to-Face', value: faceSessions.length, color: typeMeta['face-to-face'].color }
+    ].filter((item) => item.value > 0),
+    typeScores: { mcq: 0, coding: 0, interview: 0 },
+    latestResumeAnalysis: null,
+    placementReadiness: emptyDashboard.placementReadiness
+  };
+};
+
+const mergeBackendProgress = (localDashboard, backendProgress = {}) => {
+  const topicProgress = backendProgress.topicProgress?.length
+    ? backendProgress.topicProgress
+    : localDashboard.topicProgress;
+  const sortedByScore = [...topicProgress].filter((topic) => topic.attempts > 0).sort((a, b) => b.successRate - a.successRate);
+
+  return {
+    ...localDashboard,
+    totalMCQAttempts: backendProgress.totalMCQAttempts ?? localDashboard.totalMCQAttempts,
+    totalCodingAttempts: backendProgress.totalCodingAttempts ?? localDashboard.totalCodingAttempts,
+    totalFaceToFaceInterviews: backendProgress.totalFaceToFaceInterviews ?? localDashboard.totalFaceToFaceInterviews,
+    mcqAccuracy: backendProgress.mcqAccuracy ?? localDashboard.mcqAccuracy,
+    codingSuccess: backendProgress.codingSuccess ?? localDashboard.codingSuccess,
+    overallScore: backendProgress.overallRating ?? localDashboard.overallScore,
+    topicProgress,
+    recentActivity: backendProgress.recentActivity?.length ? backendProgress.recentActivity : localDashboard.recentActivity,
+    monthlyProgress: backendProgress.monthlyProgress?.length ? backendProgress.monthlyProgress : localDashboard.monthlyProgress,
+    strengths: backendProgress.strengths?.length ? backendProgress.strengths : localDashboard.strengths,
+    improvements: backendProgress.improvements?.length ? backendProgress.improvements : localDashboard.improvements,
+    recommendations: backendProgress.recommendations?.length ? backendProgress.recommendations : localDashboard.recommendations,
+    bestTopic: sortedByScore[0] || localDashboard.bestTopic,
+    focusTopic: sortedByScore[sortedByScore.length - 1] || localDashboard.focusTopic,
+    typeScores: backendProgress.typeScores || localDashboard.typeScores,
+    latestResumeAnalysis: backendProgress.latestResumeAnalysis || null,
+    placementReadiness: backendProgress.placementReadiness || localDashboard.placementReadiness
+  };
+};
+
+const StatCard = ({ icon: Icon, label, value, detail, accent }) => (
+  <div className="np-card p-5">
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="text-sm font-semibold text-slate-500">{label}</p>
+        <p className="mt-2 text-3xl font-bold text-slate-950">{value}</p>
+      </div>
+      <div className={`flex h-11 w-11 items-center justify-center rounded-md ${accent}`}>
+        <Icon className="h-5 w-5" />
+      </div>
+    </div>
+    <p className="mt-3 text-sm text-slate-500">{detail}</p>
+  </div>
+);
+
+const ReadinessBar = ({ label, value, color }) => (
+  <div>
+    <div className="mb-2 flex items-center justify-between gap-3">
+      <p className="text-sm font-semibold text-slate-700">{label}</p>
+      <p className="text-sm font-bold text-slate-950">{value}%</p>
+    </div>
+    <div className="np-progress-track">
+      <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+    </div>
+  </div>
+);
 
 const Dashboard = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [dashboardData, setDashboardData] = useState({
-    totalMCQAttempts: 0,
-    totalCodingAttempts: 0,
-    totalFaceToFaceInterviews: 0,
-    mcqAccuracy: 0,
-    codingSuccess: 0,
-    recentActivity: [],
-    topicProgress: [],
-    difficultyProgress: [],
-    monthlyProgress: [],
-    overallRating: 0,
-    strengths: [],
-    improvements: [],
-    recommendations: []
-  });
+  const [dashboardData, setDashboardData] = useState({ ...emptyDashboard, monthlyProgress: generateMonthlyProgress([]) });
   const [dataLoading, setDataLoading] = useState(false);
   const [selectedTimeframe, setSelectedTimeframe] = useState('all');
   const [scheduledInterviews, setScheduledInterviews] = useState({ upcoming: [], ongoing: [] });
-  const [registrations, setRegistrations] = useState({});
+  const [lastUpdated, setLastUpdated] = useState(null);
 
   useEffect(() => {
-    // Only fetch data when auth is complete and user exists
     if (!authLoading && user?.uid) {
       fetchDashboardData();
       fetchScheduledInterviews();
     }
-  }, [user, selectedTimeframe, authLoading]);
+  }, [user?.uid, selectedTimeframe, authLoading]);
 
   const fetchDashboardData = async () => {
-    if (!user?.uid) {
-      console.warn('❌ [Dashboard] No user ID available, skipping dashboard data fetch');
-      return;
-    }
+    if (!user?.uid) return;
 
     setDataLoading(true);
     try {
-      const userId = user.uid;
-      console.log('📊 [Dashboard] Starting data fetch...');
-      console.log('👤 [Dashboard] Firebase User ID:', userId);
-      console.log('👤 [Dashboard] User Email:', user.email);
+      const response = await fetch(`${API_BASE}/api/interview/history/${user.uid}?limit=100`);
+      const data = response.ok ? await response.json() : { sessions: [] };
+      const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+      const localDashboard = processProgressData(sessions, selectedTimeframe);
 
-      // Fetch data from MongoDB backend API (NOT Firestore)
-      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-      console.log('🌐 [Dashboard] Backend API:', API_BASE);
-      
-      let recentSessions = [];
-      let assessments = [];
-      
       try {
-        // Fetch interview history from MongoDB backend using Firebase user ID
-        const historyUrl = `${API_BASE}/api/interview/history/${userId}?limit=20`;
-        console.log('🚀 [Dashboard] Fetching from:', historyUrl);
-        
-        const historyResponse = await fetch(historyUrl);
-        console.log('📡 [Dashboard] Response status:', historyResponse.status);
-        console.log('📡 [Dashboard] Response status:', historyResponse.status);
-        
-        if (historyResponse.ok) {
-          const historyData = await historyResponse.json();
-          recentSessions = historyData.sessions || [];
-          console.log('✅ [Dashboard] Successfully fetched sessions from MongoDB');
-          console.log('📊 [Dashboard] Total sessions retrieved:', recentSessions.length);
-          console.log('📋 [Dashboard] Sessions data:', recentSessions.slice(0, 2)); // Log first 2 for debugging
-          
-          // Transform backend data to match expected format
-          recentSessions = recentSessions.map(session => ({
-            id: session.sessionId,
-            type: session.interviewType,
-            topic: session.topic,
-            difficulty: session.difficulty,
-            totalQuestions: session.totalQuestions,
-            correctAnswers: session.answeredQuestions,
-            totalProblems: session.totalQuestions,
-            solvedProblems: session.answeredQuestions,
-            timestamp: session.createdAt,
-            assessment: session.assessment
-          }));
-          
-          // Separate face-to-face interviews as assessments
-          assessments = recentSessions.filter(s => s.type === 'face-to-face');
-        } else {
-          const errorText = await historyResponse.text();
-          console.error('❌ [Dashboard] Backend returned error:', historyResponse.status);
-          console.error('❌ [Dashboard] Error details:', errorText);
-        }
-      } catch (error) {
-        console.error('❌ [Dashboard] Backend fetch failed:', error.message);
-        console.warn('⚠️ [Dashboard] Using empty data - backend not available');
+        const progressResponse = await fetch(`${API_BASE}/api/user-progress/${user.uid}?timeframe=${selectedTimeframe}`);
+        const progressData = progressResponse.ok ? await progressResponse.json() : null;
+        setDashboardData(progressData?.success ? mergeBackendProgress(localDashboard, progressData.progress) : localDashboard);
+      } catch (progressError) {
+        console.warn('Backend progress summary unavailable:', progressError.message);
+        setDashboardData(localDashboard);
       }
-
-      // Process and aggregate data
-      console.log('🔄 [Dashboard] Processing data...');
-      console.log('📋 [Dashboard] Processing sessions count:', recentSessions.length);
-      console.log('📋 [Dashboard] Processing assessments count:', assessments.length);
-      
-      const processedData = processProgressData({}, recentSessions, assessments);
-      setDashboardData(processedData);
-      
-      console.log('✅ [Dashboard] Data loaded and processed successfully');
-      console.log('📊 [Dashboard] Final stats:', {
-        mcqAttempts: processedData.totalMCQAttempts,
-        codingAttempts: processedData.totalCodingAttempts,
-        faceToFaceInterviews: processedData.totalFaceToFaceInterviews
-      });
-
+      setLastUpdated(new Date());
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      
-      // Show user-friendly message for index requirement
-      const errorMessage = error?.message || error?.toString() || 'Unknown error';
-      if (errorMessage.indexOf('requires an index') !== -1 || errorMessage.indexOf('index') !== -1) {
-        console.info('Firestore indexes are being created. Dashboard will show demo data until indexes are ready.');
-      }
-      
-      // Provide fallback data structure with helpful messages
-      setDashboardData({
-        totalMCQAttempts: 0,
-        totalCodingAttempts: 0,
-        totalFaceToFaceInterviews: 0,
-        mcqAccuracy: 0,
-        codingSuccess: 0,
-        recentActivity: [],
-        topicProgress: [
-          { topic: 'JavaScript', attempts: 0, successRate: 0 },
-          { topic: 'React', attempts: 0, successRate: 0 },
-          { topic: 'System Design', attempts: 0, successRate: 0 }
-        ],
-        difficultyProgress: [
-          { level: 'Easy', count: 0 },
-          { level: 'Medium', count: 0 },
-          { level: 'Hard', count: 0 }
-        ],
-        monthlyProgress: generateMonthlyProgress([]),
-        overallRating: 0,
-        strengths: ['Start taking interviews to see your strengths here!'],
-        improvements: ['Complete some practice sessions for personalized feedback'],
-        recommendations: [
-          'Begin with MCQ questions to build confidence',
-          'Practice coding problems to improve technical skills',
-          'Try face-to-face interviews for comprehensive assessment'
-        ]
-      });
+      setDashboardData({ ...emptyDashboard, monthlyProgress: generateMonthlyProgress([]) });
     } finally {
       setDataLoading(false);
     }
@@ -172,107 +356,56 @@ const Dashboard = () => {
     if (!user?.uid) return;
 
     try {
-      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-      
-      // Fetch user's registrations
       const token = await user.getIdToken();
-      const regResponse = await fetch(`${API_BASE}/api/public/users/${user.uid}/registrations`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const response = await fetch(`${API_BASE}/api/public/users/${user.uid}/registrations`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      
-      if (regResponse.ok) {
-        const regData = await regResponse.json();
-        if (regData.success && regData.registrations) {
-          const regMap = {};
-          regData.registrations.forEach(reg => {
-            regMap[reg.interviewId] = reg;
-          });
-          setRegistrations(regMap);
-          
-          // Categorize interviews by status with real-time checking
-          const interviews = regData.registrations.map(r => r.scheduledInterviewId).filter(Boolean);
-          const now = new Date();
-          
-          const upcoming = interviews.filter(i => {
-            const status = determineInterviewStatus(i, now);
-            return status === 'upcoming';
-          });
-          
-          const ongoing = interviews.filter(i => {
-            const status = determineInterviewStatus(i, now);
-            return status === 'ongoing';
-          });
-          
-          setScheduledInterviews({ upcoming, ongoing });
-        }
-      }
+
+      if (!response.ok) return;
+      const data = await response.json();
+      const interviews = (data.registrations || []).map((registration) => registration.scheduledInterviewId).filter(Boolean);
+      const now = new Date();
+
+      setScheduledInterviews({
+        upcoming: interviews.filter((interview) => determineInterviewStatus(interview, now) === 'upcoming'),
+        ongoing: interviews.filter((interview) => determineInterviewStatus(interview, now) === 'ongoing')
+      });
     } catch (error) {
       console.error('Error fetching scheduled interviews:', error);
     }
   };
 
-  const updateScheduledInterviewStatuses = () => {
-    setScheduledInterviews(prev => {
-      const now = new Date();
-      const allInterviews = [...prev.upcoming, ...prev.ongoing];
-      
-      const updated = { upcoming: [], ongoing: [] };
-      
-      allInterviews.forEach(interview => {
-        const status = determineInterviewStatus(interview, now);
-        
-        // Only include upcoming and ongoing, filter out completed
-        if (status === 'ongoing') {
-          updated.ongoing.push(interview);
-        } else if (status === 'upcoming') {
-          updated.upcoming.push(interview);
-        }
-        // Completed interviews are not added (filtered out)
-      });
-      
-      console.log(`📊 Dashboard status update: ${updated.upcoming.length} upcoming, ${updated.ongoing.length} ongoing`);
-      return updated;
-    });
-  };
-
   const determineInterviewStatus = (interview, now) => {
-    let startDateTime, endDateTime;
+    let startDateTime;
+    let endDateTime;
 
     if (interview.availableFromDate && interview.availableFromTime) {
-      // New flexible timing
       const fromDate = new Date(interview.availableFromDate);
       const [hours, minutes] = interview.availableFromTime.split(':');
-      fromDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      fromDate.setHours(Number(hours), Number(minutes), 0, 0);
       startDateTime = fromDate;
 
       const toDate = new Date(interview.availableToDate || interview.availableFromDate);
       const [endHours, endMinutes] = (interview.availableToTime || interview.availableFromTime).split(':');
-      toDate.setHours(parseInt(endHours), parseInt(endMinutes), 0, 0);
+      toDate.setHours(Number(endHours), Number(endMinutes), 0, 0);
       endDateTime = toDate;
     } else if (interview.scheduledDate) {
-      // Legacy timing
       const date = new Date(interview.scheduledDate);
       const [startHours, startMinutes] = interview.startTime.split(':');
-      date.setHours(parseInt(startHours), parseInt(startMinutes), 0, 0);
+      date.setHours(Number(startHours), Number(startMinutes), 0, 0);
       startDateTime = date;
 
       const endDate = new Date(interview.scheduledDate);
       const [endHours, endMinutes] = interview.endTime.split(':');
-      endDate.setHours(parseInt(endHours), parseInt(endMinutes), 0, 0);
+      endDate.setHours(Number(endHours), Number(endMinutes), 0, 0);
       endDateTime = endDate;
     } else {
       return 'upcoming';
     }
 
-    if (now >= startDateTime && now <= endDateTime) {
-      return 'ongoing';
-    } else if (now < startDateTime) {
-      return 'upcoming';
-    } else {
-      return 'completed';
-    }
+    if (now >= startDateTime && now <= endDateTime) return 'ongoing';
+    if (now < startDateTime) return 'upcoming';
+    return 'completed';
   };
 
   const handleStartInterview = (interview) => {
@@ -294,210 +427,32 @@ const Dashboard = () => {
     });
   };
 
-  const processProgressData = (progressData, sessions, assessments) => {
-    // Add safety checks for input parameters
-    const safeSessions = Array.isArray(sessions) ? sessions : [];
-    const safeAssessments = Array.isArray(assessments) ? assessments : [];
-    
-    const mcqSessions = safeSessions.filter(s => s?.type === 'mcq');
-    const codingSessions = safeSessions.filter(s => s?.type === 'coding');
-    const faceToFaceSessions = safeAssessments;
+  const nextMove = useMemo(() => {
+    if (dashboardData.focusTopic) return `Practice ${dashboardData.focusTopic.topic} next`;
+    if (dashboardData.totalMCQAttempts === 0) return 'Start with an MCQ warmup';
+    if (dashboardData.totalFaceToFaceInterviews === 0) return 'Try a face-to-face interview';
+    return 'Keep your streak alive today';
+  }, [dashboardData]);
 
-    // If no data exists, provide demo data to showcase dashboard features
-    if (safeSessions.length === 0 && safeAssessments.length === 0) {
-      return {
-        totalMCQAttempts: 0,
-        totalCodingAttempts: 0,
-        totalFaceToFaceInterviews: 0,
-        mcqAccuracy: 0,
-        codingSuccess: 0,
-        recentActivity: [],
-        topicProgress: [
-          { topic: 'JavaScript', attempts: 0, successRate: 0 },
-          { topic: 'React', attempts: 0, successRate: 0 },
-          { topic: 'System Design', attempts: 0, successRate: 0 }
-        ],
-        difficultyProgress: [
-          { level: 'Easy', count: 0 },
-          { level: 'Medium', count: 0 },
-          { level: 'Hard', count: 0 }
-        ],
-        monthlyProgress: generateMonthlyProgress([]),
-        overallRating: 0,
-        strengths: ['Complete some interviews to see your strengths!'],
-        improvements: ['Take practice interviews to get personalized feedback'],
-        recommendations: [
-          'Start with MCQ questions to build confidence',
-          'Practice coding problems daily',
-          'Try a face-to-face interview for comprehensive feedback'
-        ]
-      };
-    }
+  const hasProgress = dashboardData.totalMCQAttempts + dashboardData.totalCodingAttempts + dashboardData.totalFaceToFaceInterviews > 0;
 
-    // Calculate MCQ accuracy
-    const totalMCQQuestions = mcqSessions.reduce((sum, session) => 
-      sum + (session.totalQuestions || 0), 0);
-    const correctMCQAnswers = mcqSessions.reduce((sum, session) => 
-      sum + (session.correctAnswers || 0), 0);
-    const mcqAccuracy = totalMCQQuestions > 0 ? 
-      Math.round((correctMCQAnswers / totalMCQQuestions) * 100) : 0;
-
-    // Calculate coding success rate
-    const totalCodingProblems = codingSessions.reduce((sum, session) => 
-      sum + (session.totalProblems || 0), 0);
-    const solvedCodingProblems = codingSessions.reduce((sum, session) => 
-      sum + (session.solvedProblems || 0), 0);
-    const codingSuccess = totalCodingProblems > 0 ? 
-      Math.round((solvedCodingProblems / totalCodingProblems) * 100) : 0;
-
-    // Process topic progress - INCLUDE face-to-face interviews
-    const topicStats = {};
-    safeSessions.forEach(session => {
-      if (session?.topic) {
-        if (!topicStats[session.topic]) {
-          topicStats[session.topic] = { attempts: 0, success: 0 };
-        }
-        topicStats[session.topic].attempts += 1;
-        if (session.type === 'mcq') {
-          topicStats[session.topic].success += (session.correctAnswers || 0) / (session.totalQuestions || 1);
-        } else if (session.type === 'coding') {
-          topicStats[session.topic].success += (session.solvedProblems || 0) / (session.totalProblems || 1);
-        }
-      }
-    });
-    
-    // Add face-to-face interviews with their scores
-    safeAssessments.forEach(session => {
-      if (session?.topic && session?.assessment?.overallScore) {
-        if (!topicStats[session.topic]) {
-          topicStats[session.topic] = { attempts: 0, success: 0 };
-        }
-        topicStats[session.topic].attempts += 1;
-        // Convert 0-10 score to 0-1 success rate
-        topicStats[session.topic].success += (session.assessment.overallScore / 10);
-      }
-    });
-
-    const topicProgress = Object.entries(topicStats).map(([topic, stats]) => ({
-      topic,
-      attempts: stats.attempts,
-      successRate: Math.round((stats.success / stats.attempts) * 100)
-    }));
-
-    // Process difficulty progress
-    const difficultyStats = { easy: 0, medium: 0, hard: 0 };
-    safeSessions.forEach(session => {
-      if (session?.difficulty && difficultyStats.hasOwnProperty(session.difficulty.toLowerCase())) {
-        difficultyStats[session.difficulty.toLowerCase()] += 1;
-      }
-    });
-
-    const difficultyProgress = Object.entries(difficultyStats).map(([level, count]) => ({
-      level: level.charAt(0).toUpperCase() + level.slice(1),
-      count
-    }));
-
-    // Calculate overall rating from assessments - use overallScore (0-10 scale)
-    const overallRating = safeAssessments.length > 0 ? 
-      safeAssessments.reduce((sum, assessment) => sum + (assessment?.assessment?.overallScore || 0), 0) / safeAssessments.length : 0;
-
-    // Extract strengths and improvements from latest assessment
-    const allStrengths = safeAssessments.flatMap(a => a?.assessment?.strengths || []);
-    const allImprovements = safeAssessments.flatMap(a => 
-      a?.assessment?.improvements || a?.assessment?.areasForImprovement || []
-    );
-    const allRecommendations = safeAssessments.flatMap(a => 
-      a?.assessment?.recommendations || a?.assessment?.nextSteps || []
-    );
-
-    return {
-      totalMCQAttempts: mcqSessions.length,
-      totalCodingAttempts: codingSessions.length,
-      totalFaceToFaceInterviews: faceToFaceSessions.length,
-      mcqAccuracy,
-      codingSuccess,
-      recentActivity: safeSessions.slice(0, 5),
-      topicProgress,
-      difficultyProgress,
-      monthlyProgress: generateMonthlyProgress(safeSessions),
-      overallRating: Math.round(overallRating * 10) / 10,
-      strengths: [...new Set(allStrengths)].slice(0, 5),
-      improvements: [...new Set(allImprovements)].slice(0, 5),
-      recommendations: [...new Set(allRecommendations)].slice(0, 3)
-    };
-  };
-
-  const generateMonthlyProgress = (sessions) => {
-    // Add safety check for sessions parameter
-    const safeSessions = Array.isArray(sessions) ? sessions : [];
-    
-    const monthlyData = {};
-    const last6Months = [];
-    const now = new Date();
-    
-    for (let i = 5; i >= 0; i--) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const monthKey = date.toISOString().slice(0, 7);
-      monthlyData[monthKey] = { mcq: 0, coding: 0, faceToFace: 0 };
-      last6Months.push(monthKey);
-    }
-
-    safeSessions.forEach(session => {
-      if (!session?.timestamp) return; // Skip if no timestamp
-      
-      const sessionDate = session.timestamp?.toDate ? session.timestamp.toDate() : new Date(session.timestamp);
-      const sessionMonth = sessionDate.toISOString().slice(0, 7);
-      if (monthlyData[sessionMonth]) {
-        if (session.type === 'mcq') monthlyData[sessionMonth].mcq += 1;
-        if (session.type === 'coding') monthlyData[sessionMonth].coding += 1;
-        if (session.type === 'interview') monthlyData[sessionMonth].faceToFace += 1;
-      }
-    });
-
-    return last6Months.map(month => ({
-      month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
-      mcq: monthlyData[month].mcq,
-      coding: monthlyData[month].coding,
-      faceToFace: monthlyData[month].faceToFace
-    }));
-  };
-
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
-
-  // Show loading state while authentication is initializing
-  if (authLoading) {
+  if (authLoading || dataLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-xl text-gray-600">Authenticating...</p>
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />
+          <p className="text-lg font-medium text-slate-700">{authLoading ? 'Authenticating...' : 'Loading your dashboard...'}</p>
         </div>
       </div>
     );
   }
 
-  // Show loading state while fetching dashboard data
-  if (dataLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-xl text-gray-600">Loading your dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // If no user after auth loading is complete, redirect to login
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-xl text-gray-600 mb-4">Please log in to view your dashboard</p>
-          <button
-            onClick={() => window.location.href = '/login'}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <p className="mb-4 text-lg font-medium text-slate-700">Please log in to view your dashboard.</p>
+          <button onClick={() => navigate('/login')} className="rounded-lg bg-blue-600 px-5 py-2.5 font-semibold text-white hover:bg-blue-700">
             Go to Login
           </button>
         </div>
@@ -506,282 +461,425 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white text-black font-sans relative overflow-hidden p-6">
-      {/* Decorative corner accents for full page (responsive) */}
-      <div aria-hidden="true" className="pointer-events-none absolute -left-24 -top-16 w-44 h-44 rounded-full bg-gradient-to-br from-blue-100 to-transparent opacity-60 blur-2xl transform -rotate-12 sm:-left-32 sm:-top-24 sm:w-72 sm:h-72 sm:opacity-50"></div>
-      <div aria-hidden="true" className="pointer-events-none absolute -right-24 -bottom-12 w-52 h-52 rounded-full bg-gradient-to-tr from-blue-100 to-transparent opacity-55 blur-2xl transform rotate-12 sm:-right-40 sm:-bottom-24 sm:w-96 sm:h-96 sm:opacity-45"></div>
-      <div className="max-w-7xl mx-auto relative z-10">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Welcome back, {user?.displayName || user?.email?.split('@')[0] || 'User'}!
-          </h1>
-          <p className="text-gray-600">Track your interview preparation progress and performance</p>
-          
-          {/* Setup Notice for New Users */}
-          {dashboardData.totalMCQAttempts === 0 && dashboardData.totalCodingAttempts === 0 && dashboardData.totalFaceToFaceInterviews === 0 && (
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-start">
-                <svg className="w-5 h-5 text-blue-500 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div>
-                  <h3 className="text-sm font-semibold text-blue-800">Welcome to your Dashboard!</h3>
-                  <p className="text-sm text-blue-700 mt-1">
-                    Start taking practice interviews to see your progress here. Your performance data and AI assessments will populate this dashboard as you complete sessions.
-                  </p>
-                </div>
+    <div className="np-page">
+      <div className="np-container">
+        <div className="mb-6 grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
+          <section className="np-card-ink p-6">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="mb-3 inline-flex items-center gap-2 rounded-md border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5 text-sm font-semibold text-cyan-100">
+                  <Sparkles className="h-4 w-4" />
+                  Placement command center
+                </p>
+                <h1 className="max-w-3xl text-3xl font-bold tracking-normal text-white sm:text-4xl">
+                  Welcome back, {user?.displayName || user?.email?.split('@')[0] || 'User'}
+                </h1>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
+                  Track readiness, resume strength, weak areas, and AI-guided next steps from one focused workspace.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {['7d', '30d', '90d', 'all'].map((timeframe) => (
+                  <button
+                    key={timeframe}
+                    onClick={() => setSelectedTimeframe(timeframe)}
+                    className={`rounded-md px-3 py-2 text-sm font-semibold transition ${
+                      selectedTimeframe === timeframe
+                        ? 'bg-white text-slate-950'
+                        : 'border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10'
+                    }`}
+                  >
+                    {timeframe === 'all' ? 'All time' : timeframe.toUpperCase()}
+                  </button>
+                ))}
+                <button
+                  onClick={fetchDashboardData}
+                  className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-slate-100 hover:bg-white/10"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Refresh
+                </button>
               </div>
             </div>
-          )}
-        </div>
 
-        {/* Key Metrics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-blue-500">
-            <h3 className="text-lg font-semibold text-gray-700">MCQ Attempts</h3>
-            <p className="text-3xl font-bold text-blue-600">{dashboardData.totalMCQAttempts}</p>
-            <p className="text-sm text-gray-500 mt-1">{dashboardData.mcqAccuracy}% accuracy</p>
-          </div>
-          
-          <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-500">
-            <h3 className="text-lg font-semibold text-gray-700">Coding Problems</h3>
-            <p className="text-3xl font-bold text-green-600">{dashboardData.totalCodingAttempts}</p>
-            <p className="text-sm text-gray-500 mt-1">{dashboardData.codingSuccess}% success rate</p>
-          </div>
-          
-          <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-purple-500">
-            <h3 className="text-lg font-semibold text-gray-700">Face-to-Face</h3>
-            <p className="text-3xl font-bold text-purple-600">{dashboardData.totalFaceToFaceInterviews}</p>
-            <p className="text-sm text-gray-500 mt-1">Interviews completed</p>
-          </div>
-          
-          <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-yellow-500">
-            <h3 className="text-lg font-semibold text-gray-700">Overall Rating</h3>
-            <p className="text-3xl font-bold text-yellow-600">{dashboardData.overallRating}/5.0</p>
-            <p className="text-sm text-gray-500 mt-1">AI Assessment Score</p>
-          </div>
-        </div>
-
-        {/* Scheduled Interviews Section */}
-        {(scheduledInterviews.upcoming.length > 0 || scheduledInterviews.ongoing.length > 0) && (
-          <div className="mb-8 bg-white p-6 rounded-lg shadow-md">
-            <h3 className="text-2xl font-semibold text-gray-800 mb-4">Your Scheduled Interviews</h3>
-            
-            {scheduledInterviews.ongoing.length > 0 && (
-              <div className="mb-6">
-                <h4 className="text-lg font-semibold text-green-600 mb-3 flex items-center gap-2">
-                  <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
-                  Live Now ({scheduledInterviews.ongoing.length})
-                </h4>
-                <div className="space-y-3">
-                  {scheduledInterviews.ongoing.map(interview => (
-                    <div key={interview._id} className="border border-green-200 bg-green-50 rounded-lg p-4 flex items-center justify-between">
-                      <div>
-                        <h5 className="font-semibold text-gray-900">{interview.interviewName}</h5>
-                        <p className="text-sm text-gray-600">
-                          {interview.interviewType === 'company-based' ? interview.companyName : interview.topics?.join(', ')}
-                        </p>
-                        <p className="text-sm text-gray-500 mt-1">
-                          Duration: {interview.duration} min | {interview.numberOfQuestions} questions | {interview.difficulty}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleStartInterview(interview)}
-                        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors"
-                      >
-                        Start Now
-                      </button>
-                    </div>
-                  ))}
-                </div>
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-md border border-white/10 bg-white/5 p-4">
+                <p className="text-sm text-slate-300">Next best action</p>
+                <p className="mt-2 text-xl font-bold text-white">{nextMove}</p>
               </div>
-            )}
-            
-            {scheduledInterviews.upcoming.length > 0 && (
+              <div className="rounded-md border border-white/10 bg-white/5 p-4">
+                <p className="text-sm text-slate-300">Current streak</p>
+                <p className="mt-2 text-3xl font-bold text-white">{dashboardData.streakDays}</p>
+              </div>
+              <div className="rounded-md border border-white/10 bg-white/5 p-4">
+                <p className="text-sm text-slate-300">Practice minutes</p>
+                <p className="mt-2 text-3xl font-bold text-white">{dashboardData.totalMinutes}</p>
+              </div>
+            </div>
+          </section>
+
+          <aside className="np-card p-5">
+            <div className="mb-5 flex items-start justify-between gap-3">
               <div>
-                <h4 className="text-lg font-semibold text-blue-600 mb-3">
-                  Upcoming ({scheduledInterviews.upcoming.length})
-                </h4>
-                <div className="space-y-3">
-                  {scheduledInterviews.upcoming.slice(0, 3).map(interview => (
-                    <div key={interview._id} className="border border-gray-200 rounded-lg p-4">
-                      <div>
-                        <h5 className="font-semibold text-gray-900">{interview.interviewName}</h5>
-                        <p className="text-sm text-gray-600">
-                          {interview.interviewType === 'company-based' ? interview.companyName : interview.topics?.join(', ')}
-                        </p>
-                        <p className="text-sm text-gray-500 mt-1">
-                          Starts: {interview.availableFromDate ? new Date(interview.availableFromDate).toLocaleString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          }) : interview.scheduledDate ? new Date(interview.scheduledDate).toLocaleString() : 'TBD'} | 
-                          Duration: {interview.duration} min
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {scheduledInterviews.upcoming.length > 3 && (
-                  <button
-                    onClick={() => navigate('/scheduled-interviews')}
-                    className="mt-3 text-blue-600 hover:text-blue-800 text-sm font-medium"
-                  >
-                    View all {scheduledInterviews.upcoming.length} scheduled interviews →
-                  </button>
-                )}
+                <p className="text-sm font-semibold text-slate-500">Placement readiness</p>
+                <p className="mt-2 text-5xl font-bold text-slate-950">{dashboardData.placementReadiness.overallScore}%</p>
               </div>
-            )}
+              <ShieldCheck className="h-7 w-7 text-emerald-600" />
+            </div>
+            <p className="mb-5 text-sm font-medium text-slate-600">{dashboardData.placementReadiness.status}</p>
+            <div className="space-y-3">
+              <ReadinessBar label="Coding" value={dashboardData.placementReadiness.scores.coding} color="bg-emerald-600" />
+              <ReadinessBar label="MCQ" value={dashboardData.placementReadiness.scores.mcq} color="bg-blue-600" />
+              <ReadinessBar label="Interview" value={dashboardData.placementReadiness.scores.interview} color="bg-violet-600" />
+              <ReadinessBar label="Resume" value={dashboardData.placementReadiness.scores.resume} color="bg-amber-500" />
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate(dashboardData.placementReadiness.scores.resume ? '/mock-interviews' : '/resume-analyzer')}
+              className="np-button-primary mt-5 w-full"
+            >
+              {dashboardData.placementReadiness.scores.resume ? 'Practice weak area' : 'Analyze resume'}
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </aside>
+        </div>
+
+        {!hasProgress && (
+          <div className="np-card mb-6 border-cyan-200 bg-cyan-50 p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="font-semibold text-cyan-950">Your first readiness signal is waiting.</h2>
+                <p className="mt-1 text-sm text-cyan-800">Complete an MCQ, coding round, or face-to-face interview to activate progress tracking.</p>
+              </div>
+              <button onClick={() => navigate('/mock-interviews')} className="np-button-primary">
+                Start practice
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          {/* Monthly Progress Chart */}
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h3 className="text-xl font-semibold text-gray-800 mb-4">Monthly Progress</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={dashboardData.monthlyProgress}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="mcq" stroke="#0088FE" name="MCQ" />
-                <Line type="monotone" dataKey="coding" stroke="#00C49F" name="Coding" />
-                <Line type="monotone" dataKey="faceToFace" stroke="#FFBB28" name="Face-to-Face" />
-              </LineChart>
-            </ResponsiveContainer>
+        {(scheduledInterviews.ongoing.length > 0 || scheduledInterviews.upcoming.length > 0) && (
+          <div className="np-card mb-6 p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <CalendarClock className="h-5 w-5 text-blue-600" />
+              <h2 className="text-lg font-bold">Scheduled Interviews</h2>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {scheduledInterviews.ongoing.map((interview) => (
+                <div key={interview._id} className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-sm font-semibold text-emerald-700">Live now</p>
+                  <h3 className="mt-1 font-bold text-slate-950">{interview.interviewName}</h3>
+                  <p className="mt-1 text-sm text-slate-600">{interview.companyName || interview.topics?.join(', ') || interview.difficulty}</p>
+                  <button onClick={() => handleStartInterview(interview)} className="mt-3 rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+                    Start now
+                  </button>
+                </div>
+              ))}
+              {scheduledInterviews.upcoming.slice(0, 2).map((interview) => (
+                <div key={interview._id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-semibold text-blue-700">Upcoming</p>
+                  <h3 className="mt-1 font-bold text-slate-950">{interview.interviewName}</h3>
+                  <p className="mt-1 text-sm text-slate-600">{interview.companyName || interview.topics?.join(', ') || interview.difficulty}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <section className="mb-6">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-slate-950">Career Tools</h2>
+              <p className="mt-1 text-sm text-slate-600">Resume, ATS, and skill-gap signals connected to your readiness score.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/resume-analyzer')}
+              className="np-button-primary"
+            >
+              Analyze Resume
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="grid gap-4 md:grid-cols-4">
+            <button
+              type="button"
+              onClick={() => navigate('/resume-analyzer')}
+              className="np-card border-blue-200 bg-blue-50 p-4 text-left transition hover:-translate-y-0.5 hover:bg-blue-100"
+            >
+              <FileText className="mb-3 h-6 w-6 text-blue-700" />
+              <h3 className="font-bold text-blue-950">Resume Analyzer</h3>
+              <p className="mt-1 text-sm text-blue-800">ATS score checker</p>
+              <p className="mt-1 text-sm text-blue-800">Job match analysis</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/resume-analyzer')}
+              className="np-card border-emerald-200 bg-emerald-50 p-4 text-left transition hover:-translate-y-0.5 hover:bg-emerald-100"
+            >
+              <ShieldCheck className="mb-3 h-6 w-6 text-emerald-700" />
+              <h3 className="font-bold text-emerald-950">ATS Checker</h3>
+              <p className="mt-1 text-sm text-emerald-800">Keyword and section fit</p>
+              <p className="mt-1 text-sm text-emerald-800">Score improvement plan</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/resume-analyzer')}
+              className="np-card border-violet-200 bg-violet-50 p-4 text-left transition hover:-translate-y-0.5 hover:bg-violet-100"
+            >
+              <Target className="mb-3 h-6 w-6 text-violet-700" />
+              <h3 className="font-bold text-violet-950">Job Match Score</h3>
+              <p className="mt-1 text-sm text-violet-800">Matched skills</p>
+              <p className="mt-1 text-sm text-violet-800">Missing skill gaps</p>
+            </button>
+            <div className="np-card p-4 text-left">
+              <MessageSquareText className="mb-3 h-6 w-6 text-slate-400" />
+              <h3 className="font-bold text-slate-700">Cover Letter</h3>
+              <p className="mt-1 text-sm text-slate-500">Generator</p>
+              <p className="mt-1 text-sm font-semibold text-slate-400">Future</p>
+            </div>
+          </div>
+        </section>
+
+        <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard icon={Brain} label="MCQ Attempts" value={dashboardData.totalMCQAttempts} detail={`${dashboardData.mcqAccuracy}% accuracy across MCQs`} accent="bg-blue-50 text-blue-700" />
+          <StatCard icon={Code2} label="Coding Practice" value={dashboardData.totalCodingAttempts} detail={`${dashboardData.codingSuccess}% sessions above target`} accent="bg-emerald-50 text-emerald-700" />
+          <StatCard icon={MessageSquareText} label="Face-to-Face" value={dashboardData.totalFaceToFaceInterviews} detail="Completed interview simulations" accent="bg-violet-50 text-violet-700" />
+          <StatCard icon={Trophy} label="AI Score" value={`${dashboardData.overallScore}/10`} detail={`${dashboardData.answeredQuestions} answers evaluated`} accent="bg-amber-50 text-amber-700" />
+        </div>
+
+        <div className="np-card mb-6 p-5">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="mb-2 flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-cyan-600" />
+                <h2 className="text-xl font-bold text-slate-950">AI Coach Focus</h2>
+              </div>
+              <p className="text-sm text-slate-600">The next recommendations are based on your latest practice, interview, and resume signals.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/practice')}
+              className="np-button-secondary"
+            >
+              Open practice
+              <ArrowRight className="h-4 w-4" />
+            </button>
           </div>
 
-          {/* Topic Performance */}
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h3 className="text-xl font-semibold text-gray-800 mb-4">Topic Performance</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={dashboardData.topicProgress}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="topic" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="successRate" fill="#8884d8" name="Success Rate %" />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="grid gap-4 md:grid-cols-4">
+            <div className="np-card-quiet p-4">
+              <p className="text-sm font-semibold text-slate-500">Suggested focus</p>
+              <p className="mt-2 font-bold text-slate-950">
+                {dashboardData.placementReadiness.suggestedFocus.length ? dashboardData.placementReadiness.suggestedFocus.join(', ') : 'Build your first scored signals'}
+              </p>
+            </div>
+            <div className="np-card-quiet p-4">
+              <p className="text-sm font-semibold text-slate-500">Best topic</p>
+              <p className="mt-2 font-bold text-slate-950">{dashboardData.bestTopic?.topic || 'Not enough data yet'}</p>
+            </div>
+            <div className="np-card-quiet p-4">
+              <p className="text-sm font-semibold text-slate-500">Weak area</p>
+              <p className="mt-2 font-bold text-slate-950">{dashboardData.focusTopic?.topic || 'Awaiting signals'}</p>
+            </div>
+            <div className="np-card-quiet p-4">
+              <p className="text-sm font-semibold text-slate-500">Resume status</p>
+              <p className="mt-2 font-bold text-slate-950">
+                {dashboardData.placementReadiness.scores.resume ? `${dashboardData.placementReadiness.scores.resume}% resume signal` : 'Resume not analyzed'}
+              </p>
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Recent Activity */}
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h3 className="text-xl font-semibold text-gray-800 mb-4">Recent Activity</h3>
+        <div className="mb-6 grid gap-4 lg:grid-cols-3">
+          <div className="np-card-ink p-5 lg:col-span-2">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-300">Recommended next move</p>
+                <h2 className="mt-2 text-2xl font-bold">{nextMove}</h2>
+                <p className="mt-2 text-sm text-slate-300">
+                  {dashboardData.bestTopic ? `Best topic: ${dashboardData.bestTopic.topic} at ${dashboardData.bestTopic.successRate}%.` : 'Build your first performance baseline.'}
+                </p>
+              </div>
+              <button onClick={() => navigate('/mock-interviews')} className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-4 py-2 font-semibold text-slate-950 hover:bg-slate-100">
+                Practice now
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-md border border-white/10 bg-white/10 p-4">
+                <Flame className="mb-2 h-5 w-5 text-orange-300" />
+                <p className="text-2xl font-bold">{dashboardData.streakDays}</p>
+                <p className="text-sm text-slate-300">day streak</p>
+              </div>
+              <div className="rounded-md border border-white/10 bg-white/10 p-4">
+                <Zap className="mb-2 h-5 w-5 text-yellow-300" />
+                <p className="text-2xl font-bold">{dashboardData.totalMinutes}</p>
+                <p className="text-sm text-slate-300">minutes practiced</p>
+              </div>
+              <div className="rounded-md border border-white/10 bg-white/10 p-4">
+                <Target className="mb-2 h-5 w-5 text-cyan-300" />
+                <p className="text-2xl font-bold">{dashboardData.focusTopic?.successRate || 0}%</p>
+                <p className="text-sm text-slate-300">focus topic score</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="np-card p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <Activity className="h-5 w-5 text-rose-600" />
+              <h2 className="font-bold">Practice Mix</h2>
+            </div>
+            {dashboardData.practiceMix.length > 0 ? (
+              <ResponsiveContainer width="100%" height={190}>
+                <PieChart>
+                  <Pie data={dashboardData.practiceMix} innerRadius={50} outerRadius={75} dataKey="value" nameKey="name" paddingAngle={3}>
+                    {dashboardData.practiceMix.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-[190px] items-center justify-center rounded-md bg-slate-50 text-sm text-slate-500">No practice mix yet</div>
+            )}
+          </div>
+        </div>
+
+        <div className="mb-6 grid gap-6 lg:grid-cols-5">
+          <div className="np-card p-5 lg:col-span-3">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <LineChartIcon className="h-5 w-5 text-blue-600" />
+                <h2 className="font-bold">Monthly Momentum</h2>
+              </div>
+              {lastUpdated && <p className="text-xs text-slate-500">Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>}
+            </div>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={dashboardData.monthlyProgress}>
+                <defs>
+                  <linearGradient id="scoreFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="month" stroke="#64748b" />
+                <YAxis stroke="#64748b" />
+                <Tooltip />
+                <Area type="monotone" dataKey="Score" stroke="#2563eb" fill="url(#scoreFill)" strokeWidth={2} />
+                <Area type="monotone" dataKey="MCQ" stroke="#0f766e" fill="#ccfbf1" strokeWidth={2} />
+                <Area type="monotone" dataKey="FaceToFace" stroke="#7c3aed" fill="#ede9fe" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="np-card p-5 lg:col-span-2">
+            <div className="mb-4 flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-emerald-600" />
+              <h2 className="font-bold">Topic Performance</h2>
+            </div>
+            {dashboardData.topicProgress.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={dashboardData.topicProgress} layout="vertical" margin={{ left: 12, right: 16 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis type="number" domain={[0, 100]} stroke="#64748b" />
+                  <YAxis type="category" dataKey="topic" width={110} stroke="#64748b" tick={{ fontSize: 12 }} />
+                  <Tooltip />
+                  <Bar dataKey="successRate" name="Score %" fill="#059669" radius={[0, 6, 6, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-[300px] items-center justify-center rounded-md bg-slate-50 text-sm text-slate-500">Topic scores will appear after practice</div>
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="np-card p-5">
+            <h2 className="mb-4 font-bold">Recent Activity</h2>
             <div className="space-y-3">
               {dashboardData.recentActivity.length > 0 ? (
-                dashboardData.recentActivity.map((activity, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-gray-800 capitalize">
-                        {activity.type} - {activity.topic}
-                      </p>
-                      <p className="text-sm text-gray-600 capitalize">
-                        {activity.difficulty} • {new Date(activity.timestamp?.toDate?.() || activity.timestamp).toLocaleDateString()}
-                      </p>
+                dashboardData.recentActivity.map((activity) => {
+                  const meta = typeMeta[activity.type] || typeMeta.mcq;
+                  const Icon = meta.icon;
+                  return (
+                    <div key={activity.id} className="flex items-center justify-between gap-3 rounded-md bg-slate-50 p-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${meta.bg} ${meta.text}`}>
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-slate-900">{activity.topic}</p>
+                          <p className="text-sm capitalize text-slate-500">{meta.label} - {activity.difficulty} - {formatDate(activity.timestamp)}</p>
+                        </div>
+                      </div>
+                      <p className="shrink-0 text-sm font-bold text-slate-800">{activity.score ? `${activity.score}/10` : `${activity.correctAnswers}/${activity.totalQuestions}`}</p>
                     </div>
-                    <div className="text-right">
-                      {activity.type === 'mcq' && (
-                        <span className="text-blue-600 font-semibold">
-                          {activity.correctAnswers}/{activity.totalQuestions}
-                        </span>
-                      )}
-                      {activity.type === 'coding' && (
-                        <span className="text-green-600 font-semibold">
-                          {activity.solvedProblems}/{activity.totalProblems}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
-                <p className="text-gray-500 text-center py-8">No recent activity</p>
+                <div className="rounded-md bg-slate-50 p-6 text-center text-sm text-slate-500">No recent activity yet</div>
               )}
             </div>
           </div>
 
-          {/* Strengths & Improvements */}
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h3 className="text-xl font-semibold text-gray-800 mb-4">AI Analysis</h3>
-            
-            <div className="mb-6">
-              <h4 className="font-semibold text-green-600 mb-2">Strengths</h4>
-              <ul className="space-y-1">
-                {dashboardData.strengths.length > 0 ? (
-                  dashboardData.strengths.map((strength, index) => (
-                    <li key={index} className="text-sm text-gray-700 flex items-center">
-                      <span className="text-green-500 mr-2">✓</span>
-                      {strength}
-                    </li>
-                  ))
-                ) : (
-                  <li className="text-gray-500 text-sm">Complete interviews for AI analysis</li>
-                )}
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-semibold text-red-600 mb-2">Areas for Improvement</h4>
-              <ul className="space-y-1">
-                {dashboardData.improvements.length > 0 ? (
-                  dashboardData.improvements.map((improvement, index) => (
-                    <li key={index} className="text-sm text-gray-700 flex items-center">
-                      <span className="text-red-500 mr-2">!</span>
-                      {improvement}
-                    </li>
-                  ))
-                ) : (
-                  <li className="text-gray-500 text-sm">Complete interviews for AI analysis</li>
-                )}
-              </ul>
-            </div>
-          </div>
-
-          {/* Recommendations */}
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h3 className="text-xl font-semibold text-gray-800 mb-4">AI Recommendations</h3>
-            <div className="space-y-3">
-              {dashboardData.recommendations.length > 0 ? (
-                dashboardData.recommendations.map((recommendation, index) => (
-                  <div key={index} className="p-3 bg-blue-50 rounded-lg border-l-4 border-blue-400">
-                    <p className="text-sm text-gray-700">{recommendation}</p>
-                  </div>
-                ))
-              ) : (
-                <div className="p-3 bg-gray-50 rounded-lg text-center">
-                  <p className="text-gray-500 text-sm">Complete interviews to receive personalized recommendations</p>
-                </div>
-              )}
-            </div>
-
-            {/* Quick Actions */}
-            <div className="mt-6 pt-4 border-t">
-              <h4 className="font-semibold text-gray-800 mb-3">Quick Actions</h4>
+          <div className="np-card p-5">
+            <h2 className="mb-4 font-bold">AI Analysis</h2>
+            <div className="mb-5">
+              <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-emerald-700">
+                <CheckCircle2 className="h-4 w-4" />
+                Strengths
+              </h3>
               <div className="space-y-2">
-                <button 
-                  className="w-full text-left p-2 bg-blue-50 hover:bg-blue-100 rounded-lg text-sm text-blue-700 transition-colors"
-                  onClick={() => window.location.href = '/mock-interviews'}
-                >
-                  Start New MCQ Practice →
-                </button>
-                <button 
-                  className="w-full text-left p-2 bg-green-50 hover:bg-green-100 rounded-lg text-sm text-green-700 transition-colors"
-                  onClick={() => window.location.href = '/compiler'}
-                >
-                  Practice Coding Problems →
-                </button>
-                <button 
-                  className="w-full text-left p-2 bg-purple-50 hover:bg-purple-100 rounded-lg text-sm text-purple-700 transition-colors"
-                  onClick={() => window.location.href = '/face-to-face-interview'}
-                >
-                  Start Face-to-Face Interview →
-                </button>
+                {(dashboardData.strengths.length ? dashboardData.strengths : ['Complete interviews for AI strengths']).map((item) => (
+                  <p key={item} className="rounded-md bg-emerald-50 p-3 text-sm text-slate-700">{item}</p>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-rose-700">
+                <Target className="h-4 w-4" />
+                Focus Areas
+              </h3>
+              <div className="space-y-2">
+                {(dashboardData.improvements.length ? dashboardData.improvements : ['Complete interviews for improvement signals']).map((item) => (
+                  <p key={item} className="rounded-md bg-rose-50 p-3 text-sm text-slate-700">{item}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="np-card p-5">
+            <h2 className="mb-4 font-bold">Quick Actions</h2>
+            <div className="space-y-3">
+              <button onClick={() => navigate('/mock-interviews')} className="flex w-full items-center justify-between rounded-md border border-blue-200 bg-blue-50 p-3 text-left font-semibold text-blue-800 hover:bg-blue-100">
+                Start MCQ Practice
+                <ArrowRight className="h-4 w-4" />
+              </button>
+              <button onClick={() => navigate('/compiler')} className="flex w-full items-center justify-between rounded-md border border-emerald-200 bg-emerald-50 p-3 text-left font-semibold text-emerald-800 hover:bg-emerald-100">
+                Practice Coding
+                <ArrowRight className="h-4 w-4" />
+              </button>
+              <button onClick={() => navigate('/face-to-face-interview')} className="flex w-full items-center justify-between rounded-md border border-violet-200 bg-violet-50 p-3 text-left font-semibold text-violet-800 hover:bg-violet-100">
+                Face-to-Face Interview
+                <ArrowRight className="h-4 w-4" />
+              </button>
+              <button onClick={() => navigate('/resume-analyzer')} className="flex w-full items-center justify-between rounded-md border border-amber-200 bg-amber-50 p-3 text-left font-semibold text-amber-800 hover:bg-amber-100">
+                Resume Analyzer
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-5 border-t border-slate-200 pt-5">
+              <h3 className="mb-3 text-sm font-bold text-slate-700">AI Recommendations</h3>
+              <div className="space-y-2">
+                {(dashboardData.recommendations.length ? dashboardData.recommendations : ['Finish one session to unlock personalized next steps.']).map((item) => (
+                  <p key={item} className="rounded-md bg-slate-50 p-3 text-sm text-slate-600">{item}</p>
+                ))}
               </div>
             </div>
           </div>

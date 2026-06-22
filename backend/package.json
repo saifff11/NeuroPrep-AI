@@ -7,7 +7,7 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "postinstall": "echo 'Backend dependencies installed successfully'",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test tests/*.test.cjs",
     "test:api": "node tests/test_contests_api.js"
   },
   "keywords": [

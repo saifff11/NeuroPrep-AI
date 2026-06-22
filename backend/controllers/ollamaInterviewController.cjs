@@ -3,7 +3,7 @@
 // AI Interview Controller - FLOW LOGIC (Calls HuggingFace Space)
 
 const multer = require('multer');
-const pdf = require('pdf-parse');
+const { PDFParse } = require('pdf-parse');
 const fs = require('fs').promises;
 const path = require('path');
 const StudentPerformance = require('../models/StudentPerformance.cjs');
@@ -28,6 +28,36 @@ async function generateAIText(prompt, options = {}) {
   const result = await aiProvider.generateText(prompt, options);
   console.log(`AI response generated via ${result.source}${result.fallbackUsed ? ' (fallback)' : ''}`);
   return result;
+}
+
+const recentMCQQuestionsByKey = new Map();
+const MAX_RECENT_MCQ_QUESTIONS = 80;
+
+function getMCQHistoryKey(topic, difficulty) {
+  return `${String(topic || '').trim().toLowerCase()}::${String(difficulty || '').trim().toLowerCase()}`;
+}
+
+function normalizeQuestionText(question) {
+  return String(question || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getRecentMCQQuestions(topic, difficulty) {
+  return recentMCQQuestionsByKey.get(getMCQHistoryKey(topic, difficulty)) || [];
+}
+
+function rememberMCQQuestions(topic, difficulty, questions) {
+  const key = getMCQHistoryKey(topic, difficulty);
+  const existing = recentMCQQuestionsByKey.get(key) || [];
+  const next = [
+    ...existing,
+    ...questions.map(q => q.question).filter(Boolean)
+  ].slice(-MAX_RECENT_MCQ_QUESTIONS);
+
+  recentMCQQuestionsByKey.set(key, next);
 }
 
 // Multer configuration for PDF uploads
@@ -56,8 +86,13 @@ const upload = multer({
 async function extractPDFText(filePath) {
   try {
     const dataBuffer = await fs.readFile(filePath);
-    const pdfParse = pdf.default || pdf;
-    const data = await pdfParse(dataBuffer);
+    const parser = new PDFParse({ data: dataBuffer });
+    let data;
+    try {
+      data = await parser.getText();
+    } finally {
+      await parser.destroy();
+    }
     // Clean up file after extraction
     await fs.unlink(filePath);
     return data.text;
@@ -777,7 +812,8 @@ exports.checkHealth = async (req, res) => {
  */
 exports.generateMCQQuestions = async (req, res) => {
   try {
-    const { topic, difficulty = 'medium', count = 5 } = req.body;
+    const { topic, difficulty = 'medium', count = 5, variationSeed, excludeQuestions = [], context = {} } = req.body;
+    const requestedCount = Math.min(20, Math.max(1, parseInt(count, 10) || 5));
 
     if (!topic) {
       return res.status(400).json({
@@ -796,18 +832,66 @@ exports.generateMCQQuestions = async (req, res) => {
     console.log(`🤖 Model: ${OLLAMA_MODEL}`);
 
     const batchSize = 3;
-    const numBatches = Math.ceil(count / batchSize);
+    const baseBatchCount = Math.ceil(requestedCount / batchSize);
+    const maxBatches = baseBatchCount + 2;
+    const numBatches = maxBatches;
     let allQuestions = [];
     let lastAIResult = null;
     let batchStartTime = Date.now();
+    const requestSeed = variationSeed || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const clientExclusions = Array.isArray(excludeQuestions) ? excludeQuestions : [];
+    const excludedQuestions = [
+      ...getRecentMCQQuestions(topic, difficulty),
+      ...clientExclusions
+    ].filter(Boolean).slice(-30);
+    const usedQuestionTexts = new Set(excludedQuestions.map(normalizeQuestionText));
+    const questionStyles = [
+      'scenario-based debugging',
+      'concept comparison',
+      'code-output reasoning',
+      'best-practice decision',
+      'edge-case analysis',
+      'real-world architecture tradeoff',
+      'common mistake identification',
+      'performance and complexity'
+    ];
+    const avoidList = excludedQuestions.length > 0
+      ? excludedQuestions.map((question, index) => `${index + 1}. ${question}`).join('\n')
+      : 'None yet.';
+    const safeContext = context && typeof context === 'object' ? context : {};
+    const contextLines = [
+      safeContext.trackTitle ? `Track: ${safeContext.trackTitle}` : '',
+      safeContext.trackGroup ? `Track group: ${safeContext.trackGroup}` : '',
+      safeContext.subject ? `Selected topic: ${safeContext.subject}` : '',
+      safeContext.selectedTopic ? `Full MCQ focus: ${safeContext.selectedTopic}` : '',
+      safeContext.subTopicDescription ? `Topic description: ${safeContext.subTopicDescription}` : '',
+      safeContext.roundLabel ? `Round: ${safeContext.roundLabel}` : '',
+      Array.isArray(safeContext.availableTopics) && safeContext.availableTopics.length
+        ? `Related track topics: ${safeContext.availableTopics.slice(0, 12).join(', ')}`
+        : ''
+    ].filter(Boolean).join('\n');
+    const contextPrompt = contextLines
+      ? `\nCandidate practice context:\n${contextLines}\n`
+      : '';
 
-    for (let i = 0; i < numBatches; i++) {
-      const isLastBatch = i === numBatches - 1;
-      const currentBatchCount = isLastBatch && count % batchSize !== 0 ? count % batchSize : batchSize;
+    for (let i = 0; i < maxBatches && allQuestions.length < requestedCount; i++) {
+      const remaining = requestedCount - allQuestions.length;
+      const currentBatchCount = Math.min(batchSize, remaining);
+      const batchSeed = `${requestSeed}-batch-${i + 1}-${Math.random().toString(36).slice(2, 7)}`;
+      const selectedStyle = questionStyles[Math.floor(Math.random() * questionStyles.length)];
 
       console.log(`📤 Starting Batch ${i + 1}/${numBatches} (${currentBatchCount} questions)...`);
 
       const prompt = `Generate exactly ${currentBatchCount} multiple-choice questions for "${topic}" at ${difficulty} difficulty level.
+${contextPrompt}
+The questions must match the selected practice context. For company tracks, focus on company-style aptitude, reasoning, programming logic, coding concepts, and technical interview fundamentals relevant to the selected topic. For business, product, design, or leadership tracks, focus on role-specific decisions, frameworks, metrics, research, accessibility, collaboration, and scenarios instead of generic computer-science trivia unless the selected context is technical.
+
+Freshness seed: ${batchSeed}
+Question style for this batch: ${selectedStyle}
+
+Do NOT repeat or paraphrase these recent questions:
+${avoidList}
+
 Return ONLY a valid JSON array matching this structure exactly:
 [
   {
@@ -817,6 +901,9 @@ Return ONLY a valid JSON array matching this structure exactly:
     "explanation": "Why..."
   }
 ]
+- Each question must be new, specific, and materially different from the avoid list.
+- Do not ask generic repeated questions like "What is the primary purpose of using ${topic}?".
+- Cover different subtopics, examples, or practical situations within "${topic}".
 - Must be valid JSON array. No markdown code blocks.`;
 
       try {
@@ -849,13 +936,19 @@ Return ONLY a valid JSON array matching this structure exactly:
           q.question && Array.isArray(q.options) && q.options.length >= 4 &&
           typeof q.correctAnswer === 'number' && q.correctAnswer >= 0 && q.correctAnswer < q.options.length
         );
+        const uniqueBatch = validBatch.filter(q => {
+          const normalized = normalizeQuestionText(q.question);
+          if (!normalized || usedQuestionTexts.has(normalized)) return false;
+          usedQuestionTexts.add(normalized);
+          return true;
+        });
 
         console.log(`✅ Batch ${i + 1} yielded ${validBatch.length} valid questions.`);
-        allQuestions = allQuestions.concat(validBatch);
+        allQuestions = allQuestions.concat(uniqueBatch);
 
         // If we received more than requested somehow across batches, slice it
-        if (allQuestions.length >= count) {
-            allQuestions = allQuestions.slice(0, count);
+        if (allQuestions.length >= requestedCount) {
+            allQuestions = allQuestions.slice(0, requestedCount);
             break;
         }
 
@@ -872,6 +965,8 @@ Return ONLY a valid JSON array matching this structure exactly:
       throw new Error('No valid questions generated from any batch');
     }
 
+    rememberMCQQuestions(topic, difficulty, allQuestions);
+
     console.log(`✅ Fully Generated ${allQuestions.length} valid questions`);
     console.log('═══════════════════════════════════════════════════════');
     console.log('');
@@ -882,6 +977,7 @@ Return ONLY a valid JSON array matching this structure exactly:
       count: allQuestions.length,
       topic: topic,
       difficulty: difficulty,
+      variationSeed: requestSeed,
       source: lastAIResult?.source || providerConfig.primaryProvider,
       model: lastAIResult?.model || providerConfig.primaryModel,
       responseTime: responseTime
