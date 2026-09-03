@@ -5,9 +5,9 @@ import { auth } from '../config/firebaseClient';
  * Get Firebase authentication headers for API requests
  * @returns {Promise<Object>} Headers object with Authorization token
  */
-export async function getAuthHeaders() {
+export async function getAuthHeaders(authUser = null) {
   try {
-    const user = auth.currentUser;
+    const user = authUser || auth.currentUser;
     if (user) {
       const token = await user.getIdToken();
       return {
@@ -33,13 +33,14 @@ export async function getAuthHeaders() {
  * @returns {Promise<Response>} Fetch response
  */
 export async function authFetch(url, options = {}) {
-  const headers = await getAuthHeaders();
+  const { authUser, headers: requestHeaders, ...fetchOptions } = options;
+  const headers = await getAuthHeaders(authUser);
   
   return fetch(url, {
-    ...options,
+    ...fetchOptions,
     headers: {
       ...headers,
-      ...options.headers
+      ...requestHeaders
     }
   });
 }

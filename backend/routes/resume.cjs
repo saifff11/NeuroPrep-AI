@@ -3,7 +3,8 @@ const multer = require('multer');
 const { PDFParse } = require('pdf-parse');
 const {
   analyzeResumeText,
-  getSupportedRoles
+  getSupportedRoles,
+  normalizeInterviewQuestions
 } = require('../services/resumeAnalyzerService.cjs');
 const ResumeAnalysis = require('../models/ResumeAnalysis.cjs');
 
@@ -86,6 +87,7 @@ async function handleAnalyze(req, res) {
     const userId = req.body.userId || req.user?.uid || req.firebaseUser?.uid || 'guest';
     const saved = await ResumeAnalysis.create({
       ...analysis,
+      interviewQuestions: normalizeInterviewQuestions(analysis.interviewQuestions),
       userId,
       analyzedAt: new Date()
     });

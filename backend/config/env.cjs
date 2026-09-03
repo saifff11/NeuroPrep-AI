@@ -13,6 +13,23 @@ function splitCsv(value) {
     .filter(Boolean);
 }
 
+function readBooleanEnv(value, fallback = false) {
+  if (value === undefined || value === null || value === '') return fallback;
+  return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
+}
+
+function hasServerCodeRunner() {
+  const provider = String(process.env.CODE_RUNNER_PROVIDER || 'auto').toLowerCase();
+  const judge0Url = process.env.JUDGE0_URL || process.env.JUDGE0_BASE_URL || '';
+  const hasRapidApiKey = Boolean(process.env.JUDGE0_API_KEY || process.env.RAPIDAPI_KEY);
+  const hasSelfHostedJudge0 = Boolean(judge0Url) && !/rapidapi/i.test(judge0Url);
+  const localRunnerEnabled = readBooleanEnv(process.env.LOCAL_CODE_RUNNER_ENABLED, false);
+
+  if (provider === 'local') return localRunnerEnabled;
+  if (provider === 'judge0' || provider === 'self-hosted') return hasRapidApiKey || hasSelfHostedJudge0;
+  return hasRapidApiKey || hasSelfHostedJudge0 || localRunnerEnabled;
+}
+
 function getAllowedOrigins() {
   return [
     ...new Set([
@@ -41,8 +58,17 @@ function getMissingEnv() {
   if (isProduction && !process.env.JWT_SECRET && !process.env.ADMIN_SECRET) {
     missing.push('JWT_SECRET or ADMIN_SECRET');
   }
-  if (isProduction && !process.env.JUDGE0_API_KEY && !process.env.RAPIDAPI_KEY) {
-    missing.push('JUDGE0_API_KEY or RAPIDAPI_KEY');
+  if (
+    isProduction
+    && !process.env.FIREBASE_SERVICE_ACCOUNT
+    && !process.env.FIREBASE_SERVICE_ACCOUNT_BASE64
+    && !process.env.FIREBASE_PROJECT_ID
+    && !process.env.GOOGLE_APPLICATION_CREDENTIALS
+  ) {
+    missing.push('Firebase Admin credentials');
+  }
+  if (isProduction && !hasServerCodeRunner()) {
+    missing.push('CODE_RUNNER_PROVIDER with LOCAL_CODE_RUNNER_ENABLED, JUDGE0_URL, or JUDGE0_API_KEY/RAPIDAPI_KEY');
   }
 
   return missing;
@@ -63,5 +89,6 @@ module.exports = {
   DEFAULT_ALLOWED_ORIGINS,
   getAllowedOrigins,
   getMissingEnv,
+  hasServerCodeRunner,
   validateEnv
 };

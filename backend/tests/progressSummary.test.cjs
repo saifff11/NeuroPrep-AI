@@ -78,14 +78,62 @@ test('builds progress summary from real session, submission, and QA records', ()
   assert.equal(progress.totalCodingAttempts, 1);
   assert.equal(progress.totalFaceToFaceInterviews, 1);
   assert.equal(progress.mcqAccuracy, 82);
-  assert.equal(progress.codingSuccess, 100);
+  assert.equal(progress.codingSuccess, 90);
   assert.equal(progress.overallRating, 8);
   assert.equal(progress.strengths[0], 'Clear communication');
   assert.equal(progress.recentActivity.length, 4);
+});
+
+test('uses submitted coding points for dashboard coding score', () => {
+  const progress = buildProgressSummary({
+    submissions: [
+      {
+        _id: 'sub-1',
+        topic: 'Arrays',
+        difficulty: 'medium',
+        pointsAwarded: 100,
+        totalTestCases: 4,
+        passedTestCases: 4,
+        submittedAt: new Date('2026-06-03T10:00:00Z')
+      },
+      {
+        _id: 'sub-2',
+        topic: 'Arrays',
+        difficulty: 'medium',
+        pointsAwarded: 50,
+        totalTestCases: 4,
+        passedTestCases: 2,
+        submittedAt: new Date('2026-06-04T10:00:00Z')
+      }
+    ]
+  });
+
+  assert.equal(progress.totalCodingAttempts, 2);
+  assert.equal(progress.codingSuccess, 75);
+  assert.equal(progress.typeScores.coding, 75);
+  assert.equal(progress.topicProgress[0].codingScore, 75);
 });
 
 test('returns null timeframe for unsupported values and dates for supported ranges', () => {
   assert.equal(getTimeframeStart('all'), null);
   assert.equal(getTimeframeStart('unknown'), null);
   assert.ok(getTimeframeStart('7d') instanceof Date);
+});
+
+test('includes resume analyses in recent activity history', () => {
+  const progress = buildProgressSummary({
+    resumeAnalyses: [
+      {
+        analysisId: 'resume-1',
+        targetRole: 'Backend Developer',
+        placementReadinessScore: 82,
+        createdAt: new Date('2026-06-05T10:00:00Z')
+      }
+    ]
+  });
+
+  assert.equal(progress.recentActivity.length, 1);
+  assert.equal(progress.recentActivity[0].type, 'resume');
+  assert.equal(progress.recentActivity[0].topic, 'Backend Developer');
+  assert.equal(progress.recentActivity[0].score, 8.2);
 });

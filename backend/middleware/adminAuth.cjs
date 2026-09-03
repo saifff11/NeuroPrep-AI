@@ -1,7 +1,7 @@
-const jwt = require('jsonwebtoken');
+const { getAdminJwtSecret, verifyAdminToken: verifyAdminJwtToken } = require('../utils/adminJwt.cjs');
 
 // Middleware to verify admin JWT token
-const verifyAdminToken = (req, res, next) => {
+const verifyAdminMiddleware = (req, res, next) => {
   try {
     // Get token from cookie or Authorization header
     const token = req.cookies?.ace_admin_token || 
@@ -16,13 +16,27 @@ const verifyAdminToken = (req, res, next) => {
       });
     }
 
-    // Verify token
-    const JWT_SECRET = process.env.JWT_SECRET || process.env.ADMIN_SECRET || 'Md Saif Ali_JWT_SECRET';
-    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!getAdminJwtSecret()) {
+      return res.status(503).json({
+        success: false,
+        error: 'Admin authentication is not configured on the server',
+        code: 'ADMIN_AUTH_NOT_CONFIGURED'
+      });
+    }
+
+    const decoded = verifyAdminJwtToken(token);
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid or expired admin token'
+      });
+    }
 
     // Attach admin info to request (normalize id to _id for consistency)
+    const adminId = decoded.id || decoded._id;
     req.admin = {
-      _id: decoded.id || decoded._id,
+      id: adminId,
+      _id: adminId,
       username: decoded.username,
       email: decoded.email,
       role: decoded.role
@@ -37,4 +51,4 @@ const verifyAdminToken = (req, res, next) => {
   }
 };
 
-module.exports = verifyAdminToken;
+module.exports = verifyAdminMiddleware;

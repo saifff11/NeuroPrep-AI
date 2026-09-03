@@ -9,6 +9,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
+import { getCapabilities } from '../../services/CapabilityService';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
@@ -19,12 +20,37 @@ export default function PerformanceDashboard() {
   const [dashboardData, setDashboardData] = useState(null);
   const [prediction, setPrediction] = useState(null);
   const [notifications, setNotifications] = useState([]);
+  const [mlCapability, setMlCapability] = useState(null);
 
   useEffect(() => {
-    if (user) {
-      fetchPerformanceData();
-      fetchNotifications();
-    }
+    let active = true;
+
+    const loadDashboard = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      const capabilities = await getCapabilities();
+      const mlFeature = capabilities.features?.ml;
+
+      if (!active) return;
+      setMlCapability(mlFeature);
+
+      if (!mlFeature?.available) {
+        setLoading(false);
+        return;
+      }
+
+      await Promise.all([fetchPerformanceData(), fetchNotifications()]);
+    };
+
+    loadDashboard();
+
+    return () => {
+      active = false;
+    };
   }, [user]);
 
   const fetchNotifications = async () => {
@@ -103,6 +129,38 @@ export default function PerformanceDashboard() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (mlCapability && !mlCapability.available) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="bg-white border border-slate-200 rounded-lg p-8 shadow-sm">
+          <div className="inline-flex items-center px-3 py-1 rounded-full bg-cyan-50 text-cyan-700 text-sm font-semibold mb-4">
+            Coming soon
+          </div>
+          <h2 className="text-2xl font-bold text-slate-950 mb-3">
+            AI performance coach is not configured
+          </h2>
+          <p className="text-slate-600 mb-5">
+            {mlCapability.reason || 'This demo is hiding ML guidance until the ML service is ready.'}
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div className="text-sm font-semibold text-slate-900">Core app remains ready</div>
+              <div className="mt-1 text-sm text-slate-600">
+                MCQ, coding, resume, analytics, and interview flows can still run without this optional service.
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div className="text-sm font-semibold text-slate-900">Enable when prepared</div>
+              <div className="mt-1 text-sm text-slate-600">
+                Configure `ML_API_URL` or set `ENABLE_ML_FEATURES=true` after starting the ML service.
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

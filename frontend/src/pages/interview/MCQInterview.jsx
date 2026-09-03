@@ -479,6 +479,9 @@ const MCQInterview = () => {
           setQuizStarted(true);
           setTimeLeft(600); // Fixed 10 minutes (600 seconds) total
         }
+        if (response.fallback && autoStart) {
+          console.info('MCQ offline practice fallback loaded:', response.warning || response.source);
+        }
       } else {
         // Use fallback or empty response but do not start automatically
         setQuestions(response.questions || []);
@@ -799,6 +802,60 @@ const MCQInterview = () => {
     );
   }
 
+  if (loading) {
+    const coachLoadingMessages = [
+      'Analyzing your skill level...',
+      'Crafting personalized questions...',
+      'Selecting the right challenge mix...',
+      'Balancing difficulty for this round...',
+      'Preparing your interview set...',
+      'Almost ready to begin.'
+    ];
+
+    return (
+      <div className="np-page saas-grid fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
+        <motion.div
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="np-card-ink w-full max-w-md p-6 text-center"
+        >
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
+            className="mx-auto mb-5 h-14 w-14 rounded-full border-4 border-cyan-200/30 border-t-cyan-300"
+          />
+          <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-md border border-cyan-300/20 bg-cyan-300/10">
+            <Sparkles className="h-6 w-6 text-cyan-200" />
+          </div>
+          <h2 className="text-2xl font-bold text-white">Preparing MCQ interview</h2>
+          <AnimatePresence mode="wait">
+            <motion.p
+              key={messageIndex}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.35 }}
+              className="mt-3 text-sm font-medium text-slate-300"
+            >
+              {coachLoadingMessages[messageIndex % coachLoadingMessages.length]}
+            </motion.p>
+          </AnimatePresence>
+          <div className="np-progress-track mt-6 bg-white/10">
+            <motion.div
+              initial={{ width: '0%' }}
+              animate={{ width: '100%' }}
+              transition={{ duration: 8, ease: 'easeInOut' }}
+              className="np-progress-fill"
+            />
+          </div>
+          <p className="mt-5 text-sm text-slate-400">
+            Topic: <span className="font-semibold text-cyan-100">{topicBadgeText}</span>
+          </p>
+        </motion.div>
+      </div>
+    );
+  }
+
   // 🌟 BEAUTIFUL LOADING SCREEN - Show while questions are being generated
   if (loading) {
     return (
@@ -897,6 +954,195 @@ const MCQInterview = () => {
             transition={{ duration: 8, ease: "easeInOut" }}
             className="h-1 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full mt-8 mx-auto max-w-xs"
           />
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (!quizStarted && !loading) {
+    const currentTopics = getCurrentTopics();
+
+    return (
+      <div className="np-page saas-grid px-4 py-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="np-container max-w-5xl"
+        >
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="np-kicker">Adaptive MCQ Practice</p>
+              <h1 className="mt-2 text-3xl font-bold text-slate-950 sm:text-4xl">Configure your MCQ interview</h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+                Pick the exact placement topic, difficulty, and question count before NeuroPrep builds your round.
+              </p>
+            </div>
+            <button type="button" onClick={() => navigate(-1)} className="np-button-secondary w-fit">
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </button>
+          </div>
+
+          <div className="np-card-ink p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-cyan-200">Selected track</p>
+                <h2 className="mt-2 text-2xl font-bold text-white">{topicBadgeText}</h2>
+                <p className="mt-2 text-sm text-slate-300">{selectedTrackLabel}</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[360px]">
+                <div className="rounded-md border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Difficulty</p>
+                  <p className="mt-1 text-lg font-bold capitalize text-white">{quizConfig.difficulty}</p>
+                </div>
+                <div className="rounded-md border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Questions</p>
+                  <p className="mt-1 text-lg font-bold text-white">{quizConfig.count}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="np-card mt-6 p-6">
+            <div className="mb-6 flex items-center gap-2">
+              <Target className="h-5 w-5 text-cyan-700" />
+              <h2 className="text-xl font-bold text-slate-950">Interview setup</h2>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
+              <div>
+                {hasPracticeContext ? (
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">Selected practice context</label>
+                    <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+                      <div className="mb-3 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-wide text-cyan-800">
+                        <span className="rounded-md bg-white px-3 py-1">{selectedTrackLabel}</span>
+                        {roundLabel && <span className="rounded-md bg-white px-3 py-1">{roundLabel}</span>}
+                      </div>
+                      <h3 className="text-lg font-bold text-slate-950">{quizConfig.topic}</h3>
+                      {selectedDescription && <p className="mt-2 text-sm leading-6 text-slate-600">{selectedDescription}</p>}
+                    </div>
+
+                    {contextTopicItems.length > 1 && (
+                      <div className="mt-4">
+                        <label className="mb-2 block text-sm font-semibold text-slate-700">Track topics</label>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          {contextTopicItems.map((topic) => {
+                            const topicValue = buildPracticeTopic(topic.name);
+                            const isSelected = quizConfig.topic === topicValue;
+
+                            return (
+                              <button
+                                type="button"
+                                key={topic.name}
+                                onClick={() => setQuizConfig({ ...quizConfig, topic: topicValue })}
+                                className={isSelected ? 'rounded-md border border-cyan-500 bg-cyan-50 p-3 text-left text-sm text-cyan-900 shadow-sm' : 'rounded-md border border-slate-200 bg-white p-3 text-left text-sm text-slate-700 transition hover:border-cyan-300'}
+                              >
+                                <span className="font-semibold">{topic.name}</span>
+                                {topic.desc && <span className="mt-1 block text-xs text-slate-500">{topic.desc}</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <label className="block text-sm font-semibold text-slate-700">
+                        {showSubTopics ? 'Select specific topic' : 'Select main category'}
+                      </label>
+                      {showSubTopics && (
+                        <button
+                          type="button"
+                          onClick={() => { setShowSubTopics(false); setSelectedMainTopic(null); }}
+                          className="text-sm font-semibold text-cyan-700 hover:text-cyan-900"
+                        >
+                          Back to categories
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid max-h-64 grid-cols-1 gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
+                      {currentTopics.map((topic) => {
+                        const isSelected = (!showSubTopics && selectedMainTopic === topic.value) || (showSubTopics && quizConfig.topic === topic.value);
+
+                        return (
+                          <motion.button
+                            type="button"
+                            key={topic.value}
+                            whileHover={{ y: -2 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => {
+                              if (!showSubTopics) {
+                                setSelectedMainTopic(topic.value);
+                                setShowSubTopics(true);
+                              } else {
+                                setQuizConfig({ ...quizConfig, topic: topic.value });
+                              }
+                            }}
+                            className={isSelected ? 'rounded-md border border-cyan-500 bg-cyan-50 p-4 text-left text-sm text-cyan-900 shadow-sm' : 'rounded-md border border-slate-200 bg-white p-4 text-left text-sm text-slate-700 transition hover:border-cyan-300 hover:shadow-sm'}
+                          >
+                            <span className="font-semibold leading-tight">{topic.label}</span>
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                    {showSubTopics && quizConfig.topic && (
+                      <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-center text-sm font-semibold text-emerald-800">
+                        Selected: {quizConfig.topic}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-5">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">Difficulty level</label>
+                  <div className="space-y-2">
+                    {difficulties.map((diff) => (
+                      <motion.button
+                        type="button"
+                        key={diff.value}
+                        whileHover={{ y: -1 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setQuizConfig({ ...quizConfig, difficulty: diff.value })}
+                        className={quizConfig.difficulty === diff.value ? 'w-full rounded-md border border-cyan-500 bg-cyan-50 p-3 text-left font-semibold capitalize text-cyan-900 shadow-sm' : 'w-full rounded-md border border-slate-200 bg-white p-3 text-left font-semibold capitalize text-slate-700 transition hover:border-cyan-300'}
+                      >
+                        {diff.label}
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">Number of questions</label>
+                  <select
+                    value={quizConfig.count}
+                    onChange={(event) => setQuizConfig({ ...quizConfig, count: parseInt(event.target.value, 10) })}
+                    className="np-field"
+                  >
+                    <option value={10}>10 Questions (Recommended)</option>
+                    <option value={5}>5 Questions (Quick)</option>
+                    <option value={15}>15 Questions (Extended)</option>
+                    <option value={20}>20 Questions (Comprehensive)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <motion.button
+              type="button"
+              whileHover={{ y: showSubTopics && quizConfig.topic ? -2 : 0 }}
+              whileTap={{ scale: showSubTopics && quizConfig.topic ? 0.98 : 1 }}
+              onClick={() => fetchQuestionsFromAI(true)}
+              disabled={loading || !showSubTopics || !quizConfig.topic}
+              className="np-button-primary mt-8 w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loading ? 'Generating questions...' : !showSubTopics ? 'Select a category first' : !quizConfig.topic ? 'Select a topic first' : 'Start MCQ interview'}
+              <ArrowRight className="h-4 w-4" />
+            </motion.button>
+          </div>
         </motion.div>
       </div>
     );
@@ -1271,6 +1517,129 @@ const MCQInterview = () => {
   // Quiz Interface
   const currentQ = questions[currentQuestion];
   if (!currentQ) return null;
+
+  return (
+    <div className="np-page saas-grid px-4 py-8">
+      <div className="np-container max-w-5xl">
+        {isFullInterview && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="np-card-ink mb-4 p-4"
+          >
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-md border border-cyan-300/20 bg-cyan-300/10 text-sm font-bold text-cyan-100">
+                  R{currentRoundIndex + 1}
+                </span>
+                <div>
+                  <div className="font-bold text-white">Round {currentRoundIndex + 1} of {totalRounds}</div>
+                  <div className="text-sm text-slate-300">{allRounds[currentRoundIndex]?.label}</div>
+                </div>
+              </div>
+              <div className="text-sm text-slate-300 sm:text-right">
+                <div>Full interview mode</div>
+                <div className="text-xs text-slate-400">{totalRounds - currentRoundIndex - 1} rounds remaining</div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="np-card mb-6 p-5"
+        >
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm font-semibold text-slate-600">Question {currentQuestion + 1} of {questions.length}</span>
+              <span className="rounded-md bg-cyan-50 px-3 py-1 text-sm font-semibold text-cyan-800">
+                {quizConfig.topic} / {quizConfig.difficulty}
+              </span>
+            </div>
+            <span className={timeLeft < 120 ? 'w-fit rounded-md bg-rose-50 px-3 py-1 text-sm font-semibold text-rose-700' : timeLeft < 300 ? 'w-fit rounded-md bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-700' : 'w-fit rounded-md bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700'}>
+              Time {formatTime(timeLeft || 0)} {timeLeft < 120 ? '(Hurry)' : ''}
+            </span>
+          </div>
+          <div className="np-progress-track">
+            <div
+              className="np-progress-fill"
+              style={{ width: String(((currentQuestion + 1) / questions.length) * 100) + '%' }}
+            />
+          </div>
+        </motion.div>
+
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentQuestion}
+            initial={{ opacity: 0, x: 35 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -35 }}
+            className="np-card mb-6 p-6 sm:p-8"
+          >
+            <h2 className="mb-8 text-2xl font-bold leading-relaxed text-slate-950">
+              {currentQ.question}
+            </h2>
+
+            <div className="space-y-3">
+              {currentQ.options.map((option, index) => (
+                <motion.button
+                  type="button"
+                  key={index}
+                  whileHover={{ y: -1 }}
+                  whileTap={{ scale: 0.99 }}
+                  onClick={() => handleAnswerSelect(index)}
+                  className={selectedAnswers[currentQuestion] === index ? 'w-full rounded-md border border-cyan-500 bg-cyan-50 p-4 text-left text-cyan-950 shadow-sm transition' : 'w-full rounded-md border border-slate-200 bg-white p-4 text-left text-slate-700 transition hover:border-cyan-300 hover:shadow-sm'}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className={selectedAnswers[currentQuestion] === index ? 'flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-cyan-700 text-sm font-bold text-white' : 'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-300 text-sm font-bold text-slate-500'}>
+                      {String.fromCharCode(65 + index)}
+                    </span>
+                    <span className="text-base font-medium leading-6">{option}</span>
+                  </div>
+                </motion.button>
+              ))}
+            </div>
+          </motion.div>
+        </AnimatePresence>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <motion.button
+            type="button"
+            whileHover={{ y: currentQuestion === 0 ? 0 : -1 }}
+            whileTap={{ scale: currentQuestion === 0 ? 1 : 0.98 }}
+            onClick={goToPreviousQuestion}
+            disabled={currentQuestion === 0}
+            className="np-button-secondary justify-center disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Previous
+          </motion.button>
+
+          <div className="text-center text-sm font-semibold text-slate-600">
+            {selectedAnswers[currentQuestion] !== undefined ? 'Answered' : 'Not answered'}
+          </div>
+
+          <motion.button
+            type="button"
+            whileHover={{ y: selectedAnswers[currentQuestion] === undefined ? 0 : -1 }}
+            whileTap={{ scale: selectedAnswers[currentQuestion] === undefined ? 1 : 0.98 }}
+            onClick={goToNextQuestion}
+            disabled={selectedAnswers[currentQuestion] === undefined}
+            className="np-button-primary justify-center disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {currentQuestion === questions.length - 1 ? 'Finish' : 'Next'}
+            <ArrowRight className="h-4 w-4" />
+          </motion.button>
+        </motion.div>
+      </div>
+    </div>
+  );
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-8 px-4">

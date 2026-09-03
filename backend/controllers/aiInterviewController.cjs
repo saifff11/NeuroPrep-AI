@@ -1,5 +1,6 @@
 // Md Saif Ali - AI Interview Controller with Ollama Support
 const aiProvider = require('../services/aiProviderService.cjs');
+const { saveAiInterviewReport } = require('../services/historyService.cjs');
 
 /**
  * Generate text using the configured AI service (Ollama or Gemini)
@@ -130,7 +131,7 @@ Return ONLY the JSON object, no markdown formatting.`;
 // Generate final interview report
 exports.generateInterviewReport = async (req, res) => {
   try {
-    const { userId, role, answers, duration } = req.body;
+    const { userId, role, difficulty, answers, duration, sessionId } = req.body;
 
     if (!answers || !Array.isArray(answers)) {
       return res.status(400).json({ success: false, error: 'Answers array is required' });
@@ -178,13 +179,28 @@ Return ONLY the JSON object, no markdown formatting.`;
 
     const report = aiProvider.parseJsonResponse(responseText);
 
-    // TODO: Save report to database
-    // const Interview = require('../models/Interview.cjs');
-    // await Interview.create({ userId, role, answers, report, duration });
+    let savedSession = null;
+    try {
+      savedSession = await saveAiInterviewReport({
+        userId,
+        role,
+        difficulty,
+        answers,
+        duration,
+        report,
+        source: aiResult.source,
+        sessionId
+      });
+      console.log('AI interview report saved to analytics history:', savedSession.sessionId);
+    } catch (saveError) {
+      console.error('Failed to save AI interview report (non-blocking):', saveError.message);
+    }
 
     return res.json({
       success: true,
       report: report,
+      sessionId: savedSession?.sessionId || sessionId || null,
+      persisted: Boolean(savedSession),
       source: aiResult.source
     });
 

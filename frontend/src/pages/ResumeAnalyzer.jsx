@@ -49,6 +49,36 @@ const formatDate = (value) => {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
+const normalizeInterviewQuestion = (item, index = 0) => {
+  if (!item) return null;
+
+  if (typeof item === 'string') {
+    const question = item.trim();
+    if (!question) return null;
+    return {
+      topic: 'Resume Gap',
+      difficulty: 'medium',
+      type: 'skill-gap',
+      question
+    };
+  }
+
+  const question = String(item.question || item.text || item.prompt || '').trim();
+  if (!question) return null;
+
+  return {
+    topic: String(item.topic || item.skill || `Question ${index + 1}`).trim(),
+    difficulty: String(item.difficulty || 'medium').trim(),
+    type: String(item.type || 'skill-gap').trim(),
+    question
+  };
+};
+
+const normalizeInterviewQuestions = (items) => {
+  if (!Array.isArray(items)) return [];
+  return items.map(normalizeInterviewQuestion).filter(Boolean);
+};
+
 const ScoreCard = ({ icon: Icon, label, value, detail }) => {
   const tone = scoreTone(value);
   return (
@@ -115,6 +145,9 @@ const ResumeAnalyzer = () => {
     if (!analysis) return [];
     return (analysis.missingSkills?.length ? analysis.missingSkills : analysis.targetSkills || []).slice(0, 6);
   }, [analysis]);
+  const interviewQuestions = useMemo(() => (
+    normalizeInterviewQuestions(analysis?.interviewQuestions)
+  ), [analysis]);
 
   const canAnalyze = Boolean(resumeFile || resumeText.trim());
 
@@ -195,7 +228,7 @@ const ResumeAnalyzer = () => {
         jobRole: analysis.targetRole,
         difficulty: 'medium',
         duration: 10,
-        numberOfQuestions: Math.min(8, Math.max(3, analysis.interviewQuestions?.length || 5)),
+        numberOfQuestions: Math.min(8, Math.max(3, interviewQuestions.length || 5)),
         subTopicDescription: `Resume gap focus for ${analysis.targetRole}: ${topic}`,
         resumeAnalyzer: true,
         skillGapAnalysis: {
@@ -480,7 +513,7 @@ const ResumeAnalyzer = () => {
                 </button>
               </div>
               <div className="space-y-3">
-                {analysis.interviewQuestions.map((item, index) => (
+                {interviewQuestions.map((item, index) => (
                   <div key={`${item.topic}-${index}`} className="rounded-md bg-slate-50 p-3">
                     <p className="text-xs font-bold uppercase tracking-normal text-blue-700">{item.topic}</p>
                     <p className="mt-1 text-sm font-medium text-slate-800">{item.question}</p>

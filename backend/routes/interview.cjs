@@ -1,8 +1,9 @@
 // Md Saif Ali - Complete AI Interview Routes
 const express = require('express');
 const router = express.Router();
-const mongoose = require('mongoose');
 const interviewController = require('../controllers/interviewController.cjs');
+const InterviewSession = require('../models/InterviewSession.cjs');
+const { saveInterviewSession } = require('../services/historyService.cjs');
 
 // NEW: AI-Powered Interview System with Ollama
 // Start a new interview session
@@ -23,64 +24,6 @@ router.get('/transcript/:sessionId', interviewController.getTranscript);
 // Get user's interview history
 router.get('/user/:userId', interviewController.getUserInterviews);
 
-// LEGACY: Interview Session Schema for compatibility
-const InterviewSessionSchema = new mongoose.Schema({
-  sessionId: { type: String, required: true, unique: true },
-  userId: { type: String, required: true },
-  topic: { type: String, required: true },
-  difficulty: { type: String, required: true },
-  duration: { type: Number, required: true }, // in minutes
-  interviewType: { type: String, default: 'face-to-face' },
-  
-  // Timing data
-  startTime: { type: Date, required: true },
-  endTime: { type: Date, required: true },
-  timeSpent: { type: Number, required: true }, // in seconds
-  
-  // Questions and answers
-  totalQuestions: { type: Number, required: true },
-  answeredQuestions: { type: Number, required: true },
-  questions: [{
-    question: String,
-    category: String,
-    expectedPoints: [String],
-    followUp: String
-  }],
-  answers: [{
-    questionIndex: Number,
-    question: String,
-    answer: String,
-    isCorrect: Boolean,
-    category: String,
-    timestamp: Date,
-    timeSpent: Number
-  }],
-  correctAnswers: { type: Number, default: 0 },
-  
-  // Assessment data
-  assessment: {
-    overallScore: Number,
-    summary: String,
-    categoryScores: {
-      technical: Number,
-      communication: Number,
-      problemSolving: Number,
-      experience: Number
-    },
-    strengths: [String],
-    improvements: [String],
-    detailedFeedback: String,
-    nextSteps: [String],
-    interviewReadiness: String
-  },
-  
-  // Metadata
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-});
-
-const InterviewSession = mongoose.model('InterviewSession', InterviewSessionSchema);
-
 // Store interview session
 router.post('/store-session', async (req, res) => {
   try {
@@ -96,37 +39,8 @@ router.post('/store-session', async (req, res) => {
       });
     }
 
-    // Ensure all required fields have values with defaults if needed
-    const sessionToStore = {
-      sessionId: sessionData.sessionId,
-      userId: sessionData.userId,
-      topic: sessionData.topic,
-      difficulty: sessionData.difficulty || 'medium',
-      duration: sessionData.duration || 30,
-      interviewType: sessionData.interviewType || 'face-to-face',
-      startTime: sessionData.startTime || new Date(Date.now() - (sessionData.timeSpent || 0) * 1000),
-      endTime: sessionData.endTime || new Date(),
-      timeSpent: sessionData.timeSpent || 0,
-      totalQuestions: sessionData.totalQuestions || 0,
-      answeredQuestions: sessionData.answeredQuestions || 0,
-      correctAnswers: sessionData.correctAnswers || 0,
-      questions: sessionData.questions || [],
-      answers: sessionData.answers || [],
-      assessment: sessionData.assessment || {},
-      updatedAt: new Date()
-    };
-
-    // Use findOneAndUpdate with upsert to avoid duplicate key errors
-    // This will update existing session or create new one
-    const interviewSession = await InterviewSession.findOneAndUpdate(
-      { sessionId: sessionToStore.sessionId },
-      sessionToStore,
-      { 
-        upsert: true, // Create if doesn't exist
-        new: true,     // Return the updated document
-        setDefaultsOnInsert: true
-      }
-    );
+    const interviewSession = await saveInterviewSession(sessionData);
+    const sessionToStore = interviewSession;
     
     console.log('✅ Interview session stored successfully');
     console.log(`📊 Session ID: ${sessionToStore.sessionId}`);

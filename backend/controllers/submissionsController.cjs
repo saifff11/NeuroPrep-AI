@@ -1,7 +1,78 @@
-const axios = require('axios');
 const Submission = require('../models/Submission.cjs'); // Use the enhanced model
-const Problem = require('../models/Problem.cjs');
 const mongoose = require('mongoose');
+
+const VALID_SUBMISSION_STATUSES = new Set([
+  'pending',
+  'processing',
+  'accepted',
+  'wrong_answer',
+  'time_limit_exceeded',
+  'memory_limit_exceeded',
+  'runtime_error',
+  'compilation_error'
+]);
+
+function normalizeObjectId(value) {
+  if (!value) return null;
+  const raw = String(value);
+  return mongoose.Types.ObjectId.isValid(raw) ? raw : null;
+}
+
+function normalizeLanguage(payload = {}) {
+  if (payload.language) return String(payload.language).toLowerCase();
+  const byJudge0Id = {
+    50: 'c',
+    54: 'cpp',
+    62: 'java',
+    63: 'javascript',
+    71: 'python'
+  };
+  return byJudge0Id[Number(payload.languageId)] || 'python';
+}
+
+function normalizeStatus(value) {
+  const raw = String(value || '').toLowerCase();
+  if (raw.includes('accepted')) return 'accepted';
+  if (raw.includes('wrong') || raw.includes('partial') || raw.includes('failed')) return 'wrong_answer';
+  if (raw.includes('time')) return 'time_limit_exceeded';
+  if (raw.includes('memory')) return 'memory_limit_exceeded';
+  if (raw.includes('runtime')) return 'runtime_error';
+  if (raw.includes('compile') || raw.includes('compilation')) return 'compilation_error';
+  if (VALID_SUBMISSION_STATUSES.has(raw)) return raw;
+  return 'pending';
+}
+
+function toFiniteNumber(value, fallback = 0) {
+  if (value === null || value === undefined || value === '') return fallback;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback;
+
+  const match = String(value).match(/-?\d+(\.\d+)?/);
+  if (!match) return fallback;
+
+  const number = Number(match[0]);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function normalizeTestResult(result = {}) {
+  const expected = result.expected ?? result.output ?? result.expectedOutput ?? '';
+  const actual = result.actual ?? result.stdout ?? result.actualOutput ?? '';
+  return {
+    testCaseId: result.testCaseId ? String(result.testCaseId) : undefined,
+    passed: Boolean(result.passed),
+    input: result.input !== undefined ? String(result.input) : '',
+    expected: expected !== undefined ? String(expected) : '',
+    actual: actual !== undefined ? String(actual) : '',
+    expectedOutput: expected !== undefined ? String(expected) : '',
+    actualOutput: actual !== undefined ? String(actual) : '',
+    compileOutput: result.compile_output || result.compileOutput || '',
+    stderr: result.stderr || '',
+    status: result.status || result.classification || '',
+    executionTime: toFiniteNumber(result.time ?? result.executionTime, 0),
+    memory: toFiniteNumber(result.memory, 0),
+    error: result.error || '',
+    isHidden: Boolean(result.hidden || result.isHidden)
+  };
+}
 
 function ensureDbConnected(res) {
   if (mongoose.connection.readyState !== 1) {
@@ -25,13 +96,26 @@ async function createSubmission(req, res) {
       return res.status(400).json({ success: false, error: 'Invalid payload' });
     }
 
+    const contestId = normalizeObjectId(payload.contestId ?? payload.contest_id);
+    const problemId = normalizeObjectId(payload.problemId ?? payload.problem_id);
+    const userId = req.user?.uid ?? req.firebaseUser?.uid ?? payload.userId ?? payload.user_id ?? null;
+    const source = contestId ? 'contest' : (payload.source || 'practice');
+
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'userId is required for submissions' });
+    }
+
+    if (!payload.code) {
+      return res.status(400).json({ success: false, error: 'code is required for submissions' });
+    }
+
     // Check contest timing if this is a contest submission
     let isPracticeMode = false;
     let canScore = true;
     
-    if (payload.contestId) {
+    if (contestId) {
       const Contest = require('../models/Contest.cjs');
-      const contest = await Contest.findById(payload.contestId);
+      const contest = await Contest.findById(contestId);
       
       if (contest) {
         const now = new Date();
@@ -50,16 +134,18 @@ async function createSubmission(req, res) {
           });
         }
       }
+    } else {
+      isPracticeMode = true;
     }
 
     // Calculate test case statistics if available
-    const testResults = payload.testResults || payload.result?.details || [];
+    const testResults = (payload.testResults || payload.result?.details || []).map(normalizeTestResult);
     const totalTestCases = testResults.length || 0;
     const passedTestCases = testResults.filter(t => t.passed).length || 0;
     
-    // Calculate marks (percentage based on passed tests)
-    // Only count marks if not in practice mode
-    const marksObtained = (canScore && totalTestCases > 0) 
+    // Calculate practice/dashboard points from all submitted tests.
+    // Contest leaderboard updates still depend on countsForScore/canScore below.
+    const marksObtained = totalTestCases > 0
       ? Math.round((passedTestCases / totalTestCases) * 100) 
       : 0;
 
@@ -72,30 +158,40 @@ async function createSubmission(req, res) {
     }
 
     // Determine status
-    let status = payload.status || 'pending';
+    let status = normalizeStatus(payload.status || payload.verdict || payload.result?.status?.description);
     if (passedTestCases === totalTestCases && totalTestCases > 0) {
       status = 'accepted';
     } else if (passedTestCases > 0) {
+      status = 'wrong_answer';
+    } else if (totalTestCases > 0) {
       status = 'wrong_answer';
     }
 
     // Normalize fields for Mongo model
     const toInsert = {
-      userId: payload.userId ?? payload.user_id ?? null,
-      contestId: payload.contestId ?? payload.contest_id ?? null,
-      problemId: payload.problemId ?? payload.problem_id ?? null,
+      userId,
+      contestId,
+      problemId,
+      problemKey: payload.problemKey ? String(payload.problemKey) : null,
+      problemIndex: Number(payload.problemIndex ?? payload.problem_index ?? 0) || 0,
+      problemTitle: payload.problemTitle || payload.title || 'Coding practice',
+      topic: payload.topic || payload.subject || 'Coding Practice',
+      difficulty: payload.difficulty || 'medium',
+      source,
       code: payload.code ?? '',
-      language: payload.language ?? (payload.languageId === 71 ? 'python' : payload.languageId === 63 ? 'javascript' : 'cpp'),
+      language: normalizeLanguage(payload),
+      verdict: payload.verdict || status,
       status,
       testResults,
       totalTestCases,
       passedTestCases,
-      marksObtained: canScore ? marksObtained : 0,
+      marksObtained,
+      pointsAwarded: marksObtained,
       maxMarks: 100,
       completionStatus,
-      executionTime: payload.time ?? payload.exec_time ?? 0,
-      memory: payload.memory ?? 0,
-      score: canScore ? marksObtained : 0,
+      executionTime: toFiniteNumber(payload.time ?? payload.exec_time, 0),
+      memory: toFiniteNumber(payload.memory, 0),
+      score: marksObtained,
       judgedAt: new Date(),
       isPracticeMode, // Flag to indicate if this was practice after contest
       countsForScore: canScore // Flag to indicate if this counts toward contest score
@@ -133,8 +229,12 @@ async function createSubmission(req, res) {
       success: true, 
       submission: doc,
       message: completionStatus === 'fully_solved' 
-        ? 'All test cases passed! 🎉' 
-        : `${passedTestCases}/${totalTestCases} test cases passed`,
+        ? `Submission saved: ${marksObtained}/100 points earned.` 
+        : `Submission saved: ${marksObtained}/100 points earned (${passedTestCases}/${totalTestCases} tests passed).`,
+      pointsAwarded: marksObtained,
+      passedTestCases,
+      totalTestCases,
+      completionStatus,
       isPracticeMode
     });
   } catch (err) {
@@ -184,7 +284,7 @@ async function updateContestProgress(userId, contestId, problemId, score, status
     contest.markModified('participants');
     await contest.save();
 
-    console.log(`✓ Updated progress for user ${userId} in contest ${contestId}: Score ${participant.score}`);
+    console.log(`Updated progress for user ${userId} in contest ${contestId}: Score ${participant.score}`);
   } catch (error) {
     console.error('Error updating contest progress:', error);
     // Don't throw - this is a background update
@@ -195,11 +295,17 @@ async function listSubmissions(req, res) {
   try {
     const ok = ensureDbConnected(res);
     if (ok !== true) return;
-    const { contestId, skip = 0, limit = 50 } = req.query;
+    const { contestId, userId, problemIndex, skip = 0, limit = 50 } = req.query;
     const q = {};
-    if (contestId) q.contest_id = contestId;
+    if (contestId) q.contestId = contestId;
+    if (userId) q.userId = userId;
+    if (problemIndex !== undefined) q.problemIndex = Number(problemIndex) || 0;
 
-    const rows = await Submission.find(q).sort({ created_at: -1 }).skip(parseInt(skip)).limit(parseInt(limit)).lean();
+    const rows = await Submission.find(q)
+      .sort({ submittedAt: -1, createdAt: -1 })
+      .skip(parseInt(skip, 10) || 0)
+      .limit(parseInt(limit, 10) || 50)
+      .lean();
     res.json({ success: true, submissions: rows });
   } catch (err) {
     console.error('listSubmissions error', err);
@@ -239,7 +345,7 @@ async function getUserContestSubmissions(req, res) {
     // Get best submission per problem
     const bestSubmissions = {};
     submissions.forEach(sub => {
-      const problemKey = sub.problemId?.toString() || 'unknown';
+      const problemKey = sub.problemId?.toString() || sub.problemKey || sub.problemTitle || 'unknown';
       if (!bestSubmissions[problemKey] || 
           bestSubmissions[problemKey].marksObtained < sub.marksObtained) {
         bestSubmissions[problemKey] = sub;

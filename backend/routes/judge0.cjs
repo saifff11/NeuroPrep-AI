@@ -9,8 +9,14 @@ router.get('/health', (_req, res) => {
     success: true,
     judge0: {
       configured: config.configured,
+      provider: config.provider,
+      providerPreference: config.providerPreference,
       baseUrl: config.baseUrl,
-      host: config.host
+      host: config.host,
+      localRunnerEnabled: config.localRunnerEnabled,
+      timeoutMs: config.timeoutMs,
+      supportedLocalLanguages: config.supportedLocalLanguages,
+      warning: config.warning
     }
   });
 });

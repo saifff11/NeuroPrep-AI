@@ -2,10 +2,20 @@
 // Firebase authentication tokens are automatically included in requests
 import { authFetch } from '../utils/authUtils';
 
-const API_SUBMISSIONS_ENDPOINT = '/api/submissions';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_SUBMISSIONS_ENDPOINT = `${API_BASE}/api/submissions`;
+
+async function readErrorBody(response) {
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    const data = await response.json().catch(() => null);
+    return data?.error || data?.details || data?.message || JSON.stringify(data);
+  }
+  return response.text().catch(() => '');
+}
 
 // Create a new submission record
-export const createSubmission = async (submission) => {
+export const createSubmission = async (submission, authUser = null) => {
   try {
     const now = new Date().toISOString();
     const payload = {
@@ -18,14 +28,23 @@ export const createSubmission = async (submission) => {
     // Firebase auth token will be included automatically
     const resp = await authFetch(API_SUBMISSIONS_ENDPOINT, { 
       method: 'POST', 
+      authUser,
       body: JSON.stringify(payload) 
     });
     if (!resp.ok) {
-      const text = await resp.text();
-      throw new Error(`Backend submissions API responded ${resp.status}: ${text}`);
+      const details = await readErrorBody(resp);
+      throw new Error(details || `Backend submissions API responded ${resp.status}`);
     }
     const data = await resp.json();
-    return data.submission || data;
+    if (data.submission) {
+      return {
+        ...data.submission,
+        pointsAwarded: data.pointsAwarded ?? data.submission.pointsAwarded,
+        passedTestCases: data.passedTestCases ?? data.submission.passedTestCases,
+        totalTestCases: data.totalTestCases ?? data.submission.totalTestCases
+      };
+    }
+    return data;
   } catch (error) {
     console.error('Error creating submission via backend API:', error);
     throw error;

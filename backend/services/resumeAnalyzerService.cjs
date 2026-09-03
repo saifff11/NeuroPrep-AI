@@ -248,6 +248,40 @@ function buildRoadmap({ missingSkills, targetRole, atsScore }) {
   };
 }
 
+function normalizeInterviewQuestion(value, index = 0) {
+  if (!value) return null;
+
+  if (typeof value === 'string') {
+    const question = value.trim();
+    if (!question) return null;
+
+    return {
+      topic: 'Resume Gap',
+      difficulty: 'medium',
+      type: 'skill-gap',
+      question
+    };
+  }
+
+  const question = String(value.question || value.text || value.prompt || '').trim();
+  if (!question) return null;
+
+  return {
+    topic: String(value.topic || value.skill || `Question ${index + 1}`).trim(),
+    difficulty: String(value.difficulty || 'medium').trim(),
+    type: String(value.type || 'skill-gap').trim(),
+    question
+  };
+}
+
+function normalizeInterviewQuestions(values) {
+  const list = Array.isArray(values) ? values : [values];
+  return list
+    .map(normalizeInterviewQuestion)
+    .filter(Boolean)
+    .slice(0, 10);
+}
+
 function buildInterviewQuestions({ missingSkills, targetSkills, targetRole }) {
   const topics = (missingSkills.length ? missingSkills : targetSkills).slice(0, 6);
   const questions = [];
@@ -267,7 +301,7 @@ function buildInterviewQuestions({ missingSkills, targetSkills, targetRole }) {
     });
   });
 
-  return questions.slice(0, 10);
+  return normalizeInterviewQuestions(questions);
 }
 
 function analyzeResumeText({ resumeText, targetRole = 'Software Engineer', jobDescription = '', targetSkills = [] } = {}) {
@@ -324,5 +358,6 @@ module.exports = {
   detectSkills,
   getSupportedRoles,
   getTargetSkills,
+  normalizeInterviewQuestions,
   skillAppearsInText
 };

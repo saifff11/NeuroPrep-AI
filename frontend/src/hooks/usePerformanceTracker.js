@@ -7,8 +7,9 @@
  */
 
 import { useState } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
+import { isFeatureAvailable } from '../services/CapabilityService';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
@@ -27,6 +28,10 @@ export const usePerformanceTracker = () => {
   const recordInteraction = async (topicId, topicName, questionId, correct, timeSpent = 0) => {
     if (!user) {
       console.warn('User not authenticated, cannot record interaction');
+      return null;
+    }
+
+    if (!(await isFeatureAvailable('ml'))) {
       return null;
     }
 
@@ -62,6 +67,7 @@ export const usePerformanceTracker = () => {
    */
   const getPrediction = async () => {
     if (!user) return null;
+    if (!(await isFeatureAvailable('ml'))) return null;
 
     try {
       const token = await user.getIdToken();
@@ -81,6 +87,7 @@ export const usePerformanceTracker = () => {
    */
   const getAnalytics = async () => {
     if (!user) return null;
+    if (!(await isFeatureAvailable('ml'))) return null;
 
     try {
       const token = await user.getIdToken();

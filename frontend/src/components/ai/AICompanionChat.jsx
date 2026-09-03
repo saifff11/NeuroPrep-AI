@@ -9,6 +9,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
+import { getCapabilities } from '../../services/CapabilityService';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
@@ -21,6 +22,7 @@ export default function AICompanionChat() {
   const [sessionId, setSessionId] = useState(null);
   const [proactiveSuggestion, setProactiveSuggestion] = useState(null);
   const [showSuggestion, setShowSuggestion] = useState(false);
+  const [aiAgentCapability, setAiAgentCapability] = useState(null);
   const [voiceEnabled, setVoiceEnabled] = useState(() => {
     // Load voice preference from localStorage, default to true
     const saved = localStorage.getItem('aiVoiceEnabled');
@@ -30,25 +32,39 @@ export default function AICompanionChat() {
   const messagesEndRef = useRef(null);
   const speechSynthRef = useRef(null);
 
+  useEffect(() => {
+    let active = true;
+
+    getCapabilities().then((capabilities) => {
+      if (active) {
+        setAiAgentCapability(capabilities.features?.aiAgent);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   // Save voice preference whenever it changes
   useEffect(() => {
     localStorage.setItem('aiVoiceEnabled', voiceEnabled.toString());
   }, [voiceEnabled]);
 
   useEffect(() => {
-    if (user && isOpen && !sessionId) {
+    if (user && isOpen && !sessionId && aiAgentCapability?.available) {
       initializeChat();
     }
-  }, [user, isOpen]);
+  }, [user, isOpen, sessionId, aiAgentCapability]);
 
   useEffect(() => {
-    if (user) {
+    if (user && aiAgentCapability?.available) {
       fetchProactiveSuggestion();
       // Fetch new suggestions every 2 minutes
       const interval = setInterval(fetchProactiveSuggestion, 120000);
       return () => clearInterval(interval);
     }
-  }, [user]);
+  }, [user, aiAgentCapability]);
 
   useEffect(() => {
     scrollToBottom();
@@ -113,6 +129,8 @@ export default function AICompanionChat() {
   };
 
   const initializeChat = async () => {
+    if (!aiAgentCapability?.available) return;
+
     try {
       const token = await user.getIdToken();
       const response = await axios.get(`${API_BASE_URL}/api/ai-agent/session`, {
@@ -141,6 +159,7 @@ export default function AICompanionChat() {
 
   const fetchProactiveSuggestion = async () => {
     if (!user) return;
+    if (!aiAgentCapability?.available) return;
 
     try {
       const token = await user.getIdToken();
@@ -162,6 +181,7 @@ export default function AICompanionChat() {
 
   const sendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;
+    if (!aiAgentCapability?.available) return;
 
     const userMessage = inputMessage.trim();
     setInputMessage('');
@@ -233,6 +253,20 @@ export default function AICompanionChat() {
   };
 
   if (!user) return null;
+  if (!aiAgentCapability) return null;
+
+  if (aiAgentCapability && !aiAgentCapability.available) {
+    return (
+      <button
+        type="button"
+        disabled
+        title={aiAgentCapability.reason}
+        className="fixed bottom-6 right-6 z-40 rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 shadow-xl"
+      >
+        AI Coach Coming Soon
+      </button>
+    );
+  }
 
   return (
     <>

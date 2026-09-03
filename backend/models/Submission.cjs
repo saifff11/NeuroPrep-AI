@@ -8,12 +8,43 @@ const submissionSchema = new mongoose.Schema({
   contestId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Contest',
-    required: true
+    required: false,
+    default: null
   },
   problemId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Problem',
-    required: true
+    required: false,
+    default: null
+  },
+  problemKey: {
+    type: String,
+    default: null
+  },
+  problemIndex: {
+    type: Number,
+    default: 0
+  },
+  problemTitle: {
+    type: String,
+    default: 'Coding practice'
+  },
+  topic: {
+    type: String,
+    default: 'Coding Practice'
+  },
+  difficulty: {
+    type: String,
+    default: 'medium'
+  },
+  source: {
+    type: String,
+    enum: ['practice', 'contest', 'interview'],
+    default: 'practice'
+  },
+  verdict: {
+    type: String,
+    default: 'Unknown'
   },
   code: {
     type: String,
@@ -33,8 +64,13 @@ const submissionSchema = new mongoose.Schema({
     testCaseId: String,
     passed: Boolean,
     input: String,
+    expected: String,
+    actual: String,
     expectedOutput: String,
     actualOutput: String,
+    compileOutput: String,
+    stderr: String,
+    status: String,
     executionTime: Number,
     memory: Number,
     error: String,
@@ -60,6 +96,12 @@ const submissionSchema = new mongoose.Schema({
   marksObtained: {
     type: Number,
     default: 0
+  },
+  pointsAwarded: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100
   },
   maxMarks: {
     type: Number,

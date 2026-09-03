@@ -3,7 +3,7 @@
 const InterviewTranscript = require('../models/InterviewTranscript.cjs');
 const StudentPerformance = require('../models/StudentPerformance.cjs');
 const aiProvider = require('../services/aiProviderService.cjs');
-const mongoose = require('mongoose');
+const { saveInterviewSession } = require('../services/historyService.cjs');
 
 /**
  * Generate AI response using the configured backend provider.
@@ -13,6 +13,90 @@ async function generateWithAI(prompt, options = {}) {
   console.log(`AI generation completed via ${result.source}${result.fallbackUsed ? ' (fallback)' : ''}`);
   return result;
 }
+
+function sanitizeInterviewQuestionText(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+
+  return text
+    .replace(/\s*,?\s*as inspired by the interview_[a-z0-9_-]+\s+seed\??/gi, '?')
+    .replace(/\s*,?\s*as inspired by [a-z0-9_-]+\s+seed\??/gi, '?')
+    .replace(/\s*,?\s*using the freshness seed [a-z0-9_-]+\??/gi, '?')
+    .replace(/\s*freshness seed[:\s]+[a-z0-9_-]+/gi, '')
+    .replace(/\s+([?.!,])/g, '$1')
+    .replace(/\?{2,}/g, '?')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function shouldRequireCompiler(topic, role, questionNumber) {
+  const text = `${topic || ''} ${role || ''}`.toLowerCase();
+  const codingSignals = [
+    'dsa',
+    'algorithm',
+    'coding',
+    'programming',
+    'data structure',
+    'array',
+    'string',
+    'linked list',
+    'tree',
+    'graph',
+    'dynamic programming',
+    'java',
+    'javascript',
+    'python',
+    'c++',
+    'cpp'
+  ];
+
+  return codingSignals.some((signal) => text.includes(signal)) && questionNumber % 3 === 0;
+}
+
+function buildFallbackInterviewQuestion(transcript, questionNumber) {
+  const role = transcript?.role || 'Software Engineer';
+  const topic = transcript?.topic || role || 'Software Engineering';
+  const difficulty = transcript?.difficulty || 'medium';
+  const focus = `${topic} for a ${role}`;
+  const templates = [
+    {
+      question: `Can you explain a core ${topic} concept and describe how you would apply it in a ${role} project?`,
+      points: ['Clear concept explanation', 'Relevant project example', 'Tradeoffs or limitations']
+    },
+    {
+      question: `How would you debug a practical ${topic} issue in a production-style ${role} workflow?`,
+      points: ['Reproduce the issue', 'Isolate the root cause', 'Validate the fix with tests or checks']
+    },
+    {
+      question: `What edge cases or failure scenarios would you consider while working with ${focus}?`,
+      points: ['Boundary cases', 'Failure modes', 'Maintainability and user impact']
+    },
+    {
+      question: `Can you compare two approaches for solving a ${topic} problem and explain which one you would choose?`,
+      points: ['Alternative approaches', 'Decision criteria', 'Complexity or business tradeoffs']
+    },
+    {
+      question: `How would you make a ${topic} solution more maintainable, secure, and scalable for a real team project?`,
+      points: ['Maintainable structure', 'Security considerations', 'Scalability and monitoring']
+    },
+    {
+      question: `Walk me through how you would test and validate a ${topic} feature before presenting it in an interview or demo.`,
+      points: ['Test strategy', 'Important cases', 'How results are communicated']
+    }
+  ];
+  const selected = templates[(questionNumber - 1) % templates.length];
+
+  return {
+    question: selected.question,
+    category: topic,
+    expectedPoints: selected.points,
+    compilerRequired: shouldRequireCompiler(topic, role, questionNumber),
+    fallback: true,
+    fallbackReason: 'AI provider unavailable or returned invalid question format'
+  };
+}
+
+exports.sanitizeInterviewQuestionText = sanitizeInterviewQuestionText;
 
 /**
  * START INTERVIEW - Create new interview session
@@ -152,7 +236,7 @@ exports.getNextQuestion = async (req, res) => {
 
 This is question ${currentQuestionNumber} of ${transcript.totalQuestions}.${contextNote}
 
-Freshness seed for this exact interview run: ${variationSeed}
+Private variation token for this exact interview run. Do not mention it in the question: ${variationSeed}
 Question angle to use now: ${selectedAngle}
 
 Generate ONE interview question that:
@@ -161,7 +245,8 @@ Generate ONE interview question that:
 - Specifically covers ${selectedCategory} topics ONLY
 - Tests different aspects than previous questions
 - Is materially different from common starter questions and from any question you would ask for the same role/topic in another session
-- Uses the freshness seed and angle above to vary the wording, scenario, and concept focus
+- Uses the private variation token and angle internally to vary the wording, scenario, and concept focus
+- Never mentions the private variation token, freshness seed, session id, or that the question was inspired by anything
 - Is clear and professional
 - Has 3-5 expected key points for a good answer
 - Determine if this question requires CODE/PROGRAMMING (compilerRequired: true/false)
@@ -232,6 +317,11 @@ Return ONLY the JSON object, no markdown formatting, no extra text.`;
       throw new Error('Invalid question format from AI');
     }
 
+    questionData.question = sanitizeInterviewQuestionText(questionData.question);
+    if (!questionData.question) {
+      throw new Error('Generated question was empty after cleanup');
+    }
+
     // Add question to transcript (without user answer initially)
     transcript.questionsAndAnswers.push({
       questionNumber: currentQuestionNumber,
@@ -275,6 +365,61 @@ Return ONLY the JSON object, no markdown formatting, no extra text.`;
 
   } catch (error) {
     console.error('Error generating next question:', error.message);
+    try {
+      const { sessionId } = req.body || {};
+      if (sessionId) {
+        const transcript = await InterviewTranscript.findOne({ sessionId });
+        if (transcript && transcript.status === 'in-progress') {
+          const currentQuestionNumber = transcript.questionsAndAnswers.length + 1;
+
+          if (currentQuestionNumber <= transcript.totalQuestions) {
+            const questionData = buildFallbackInterviewQuestion(transcript, currentQuestionNumber);
+
+            transcript.questionsAndAnswers.push({
+              questionNumber: currentQuestionNumber,
+              question: {
+                text: questionData.question,
+                category: questionData.category,
+                expectedPoints: questionData.expectedPoints,
+                compilerRequired: questionData.compilerRequired || false
+              },
+              userAnswer: {
+                text: '',
+                code: null,
+                compilerUsed: false,
+                timestamp: null,
+                timeSpent: null
+              },
+              evaluation: {}
+            });
+
+            await transcript.save();
+
+            console.warn(`Built-in interview fallback served for ${sessionId}: ${error.message}`);
+            return res.json({
+              success: true,
+              fallback: true,
+              warning: 'AI provider could not generate a valid question, so a built-in interview question was used.',
+              question: {
+                number: currentQuestionNumber,
+                total: transcript.totalQuestions,
+                text: questionData.question,
+                category: questionData.category,
+                compilerRequired: questionData.compilerRequired || false
+              },
+              progress: {
+                current: currentQuestionNumber,
+                total: transcript.totalQuestions,
+                percentage: Math.floor((currentQuestionNumber / transcript.totalQuestions) * 100)
+              }
+            });
+          }
+        }
+      }
+    } catch (fallbackError) {
+      console.error('Interview fallback question failed:', fallbackError.message);
+    }
+
     return res.status(500).json({
       success: false,
       error: 'Failed to generate question',
@@ -796,8 +941,6 @@ Return ONLY valid JSON, no markdown, no code blocks.`;
 
     // 💾 SAVE TO INTERVIEWSESSION FOR DASHBOARD
     try {
-      const InterviewSession = require('../routes/interview.cjs').InterviewSession || mongoose.model('InterviewSession');
-      
       const sessionStartTime = transcript.startTime || new Date(Date.now() - (transcript.totalDuration || 30) * 60 * 1000);
       const sessionEndTime = transcript.endTime || new Date();
       const timeSpent = Math.floor((sessionEndTime - sessionStartTime) / 1000); // in seconds
@@ -824,11 +967,7 @@ Return ONLY valid JSON, no markdown, no code blocks.`;
         }
       };
       
-      await InterviewSession.findOneAndUpdate(
-        { sessionId: sessionId },
-        sessionData,
-        { upsert: true, new: true }
-      );
+      await saveInterviewSession(sessionData);
       
       console.log('✅ Saved to InterviewSession for dashboard:', sessionId);
     } catch (sessionError) {

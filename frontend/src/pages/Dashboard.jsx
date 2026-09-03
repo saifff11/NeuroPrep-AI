@@ -71,7 +71,8 @@ const emptyDashboard = {
 const typeMeta = {
   mcq: { label: 'MCQ', icon: Brain, color: '#2563eb', bg: 'bg-blue-50', text: 'text-blue-700' },
   coding: { label: 'Coding', icon: Code2, color: '#059669', bg: 'bg-emerald-50', text: 'text-emerald-700' },
-  'face-to-face': { label: 'Face-to-Face', icon: MessageSquareText, color: '#7c3aed', bg: 'bg-violet-50', text: 'text-violet-700' }
+  'face-to-face': { label: 'Face-to-Face', icon: MessageSquareText, color: '#7c3aed', bg: 'bg-violet-50', text: 'text-violet-700' },
+  resume: { label: 'Resume', icon: FileText, color: '#d97706', bg: 'bg-amber-50', text: 'text-amber-700' }
 };
 
 const formatDate = (value) => {
@@ -645,7 +646,7 @@ const Dashboard = () => {
 
         <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard icon={Brain} label="MCQ Attempts" value={dashboardData.totalMCQAttempts} detail={`${dashboardData.mcqAccuracy}% accuracy across MCQs`} accent="bg-blue-50 text-blue-700" />
-          <StatCard icon={Code2} label="Coding Practice" value={dashboardData.totalCodingAttempts} detail={`${dashboardData.codingSuccess}% sessions above target`} accent="bg-emerald-50 text-emerald-700" />
+          <StatCard icon={Code2} label="Coding Practice" value={dashboardData.totalCodingAttempts} detail={`${dashboardData.codingSuccess}/100 average coding points`} accent="bg-emerald-50 text-emerald-700" />
           <StatCard icon={MessageSquareText} label="Face-to-Face" value={dashboardData.totalFaceToFaceInterviews} detail="Completed interview simulations" accent="bg-violet-50 text-violet-700" />
           <StatCard icon={Trophy} label="AI Score" value={`${dashboardData.overallScore}/10`} detail={`${dashboardData.answeredQuestions} answers evaluated`} accent="bg-amber-50 text-amber-700" />
         </div>

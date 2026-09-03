@@ -2,7 +2,7 @@
 // Setup wizard for configuring avatar before starting face-to-face interview
 // Inspired by SadTalker.org's workflow: Image → Audio → Generate
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
@@ -11,6 +11,7 @@ import {
   Sparkles, Clock, MessageSquare, Zap 
 } from 'lucide-react';
 import AvatarSelector from './AvatarSelector';
+import { getCapabilities } from '../../services/CapabilityService';
 
 const InterviewAvatarSetup = ({ 
   interviewConfig, 
@@ -20,12 +21,31 @@ const InterviewAvatarSetup = ({
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedAvatar, setSelectedAvatar] = useState(null);
   const [showAvatarSelector, setShowAvatarSelector] = useState(false);
+  const [avatarCapability, setAvatarCapability] = useState(null);
   const [interviewSettings, setInterviewSettings] = useState({
     useSadTalker: false,
     avatarSpeed: 'normal',
     expressiveness: 'high',
     enableEnhancer: true
   });
+
+  useEffect(() => {
+    let active = true;
+
+    getCapabilities().then((capabilities) => {
+      if (active) {
+        const avatarFeature = capabilities.features?.avatar;
+        setAvatarCapability(avatarFeature);
+        if (avatarFeature?.available === false) {
+          setInterviewSettings(prev => ({ ...prev, useSadTalker: false }));
+        }
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const steps = [
     {
@@ -52,8 +72,8 @@ const InterviewAvatarSetup = ({
     setSelectedAvatar(avatar);
     setShowAvatarSelector(false);
     
-    // If custom avatar is selected, enable SadTalker
-    if (avatar.isCustom) {
+    // If custom avatar is selected and the backend is ready, enable SadTalker.
+    if (avatar.isCustom && avatarCapability?.available) {
       setInterviewSettings(prev => ({ ...prev, useSadTalker: true }));
     }
     
@@ -283,11 +303,16 @@ const InterviewAvatarSetup = ({
                           useSadTalker: e.target.checked 
                         }))}
                         className="sr-only peer"
-                        disabled={!selectedAvatar?.isCustom}
+                        disabled={!selectedAvatar?.isCustom || avatarCapability?.available === false}
                       />
                       <div className="w-14 h-7 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600"></div>
                     </label>
                   </div>
+                  {avatarCapability && !avatarCapability.available && (
+                    <p className="mt-3 text-xs text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                      Realistic video avatar is coming soon for this demo.
+                    </p>
+                  )}
                   {!selectedAvatar?.isCustom && (
                     <p className="mt-3 text-xs text-orange-600 dark:text-orange-400 flex items-center gap-2">
                       ⚠️ Upload a custom avatar to enable SadTalker features

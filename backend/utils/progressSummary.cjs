@@ -36,8 +36,18 @@ function clampScore(value) {
   return Math.max(0, Math.min(100, Math.round(number)));
 }
 
+function getSubmissionScore(submission) {
+  return Number(submission?.pointsAwarded ?? submission?.score ?? submission?.marksObtained ?? 0);
+}
+
 function average(values) {
   const clean = values.map(Number).filter((value) => Number.isFinite(value) && value > 0);
+  if (!clean.length) return 0;
+  return Math.round(clean.reduce((sum, value) => sum + value, 0) / clean.length);
+}
+
+function averageIncludingZero(values) {
+  const clean = values.map(Number).filter((value) => Number.isFinite(value));
   if (!clean.length) return 0;
   return Math.round(clean.reduce((sum, value) => sum + value, 0) / clean.length);
 }
@@ -99,7 +109,7 @@ function buildPlacementReadiness(progress = {}, latestResumeAnalysis = null) {
   };
 }
 
-function buildProgressSummary({ sessions = [], submissions = [], qaResponses = [], performance = null } = {}) {
+function buildProgressSummary({ sessions = [], submissions = [], qaResponses = [], resumeAnalyses = [], performance = null } = {}) {
   const mcqSessions = sessions.filter((session) => normalizeSessionType(session) === 'mcq');
   const codingSessions = sessions.filter((session) => normalizeSessionType(session) === 'coding');
   const faceSessions = sessions.filter((session) => normalizeSessionType(session) === 'face-to-face');
@@ -112,10 +122,13 @@ function buildProgressSummary({ sessions = [], submissions = [], qaResponses = [
     qaResponses.filter((item) => item.isCorrect).length;
 
   const acceptedSubmissions = submissions.filter(isAcceptedSubmission);
+  const submissionScores = submissions
+    .map(getSubmissionScore)
+    .filter((score) => Number.isFinite(score));
   const allScores = [
     ...sessions.map(getSessionScore).filter((score) => score > 0),
     ...submissions
-      .map((submission) => Number(submission.score || submission.marksObtained || 0) / 10)
+      .map((submission) => getSubmissionScore(submission) / 10)
       .filter((score) => score > 0)
   ];
 
@@ -162,7 +175,7 @@ function buildProgressSummary({ sessions = [], submissions = [], qaResponses = [
     );
   });
   submissions.forEach((submission) => {
-    const score = Number(submission.score || submission.marksObtained || 0);
+    const score = getSubmissionScore(submission);
     addTopic(submission.topic || submission.problemTitle || 'Contest Coding', score, 1, isAcceptedSubmission(submission) ? 1 : 0, 'coding');
   });
   qaResponses.forEach((item) => addTopic(item.topic, item.isCorrect ? 100 : 0, 1, item.isCorrect ? 1 : 0, 'mcq'));
@@ -198,9 +211,9 @@ function buildProgressSummary({ sessions = [], submissions = [], qaResponses = [
     ...submissions.map((submission) => ({
       id: submission._id,
       type: 'coding',
-      topic: 'Contest Coding',
-      difficulty: 'contest',
-      score: Number(submission.score || submission.marksObtained || 0) / 10,
+      topic: submission.topic || submission.problemTitle || 'Coding Practice',
+      difficulty: submission.difficulty || (submission.contestId ? 'contest' : 'practice'),
+      score: getSubmissionScore(submission) / 10,
       timestamp: submission.submittedAt || submission.createdAt
     })),
     ...qaResponses.map((item) => ({
@@ -210,6 +223,19 @@ function buildProgressSummary({ sessions = [], submissions = [], qaResponses = [
       difficulty: item.difficulty,
       score: item.isCorrect ? 10 : 0,
       timestamp: item.answeredAt
+    })),
+    ...resumeAnalyses.map((analysis) => ({
+      id: analysis.analysisId || analysis._id,
+      type: 'resume',
+      topic: analysis.targetRole || 'Resume Analyzer',
+      difficulty: 'ATS analysis',
+      score: Math.round(clampScore(
+        analysis.placementReadinessScore ||
+        analysis.atsScore ||
+        analysis.jobMatchScore ||
+        0
+      )) / 10,
+      timestamp: analysis.createdAt || analysis.analyzedAt
     }))
   ]
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
@@ -236,7 +262,7 @@ function buildProgressSummary({ sessions = [], submissions = [], qaResponses = [
   const typeScores = {
     mcq: mcqQuestionTotal ? Math.round((mcqCorrectTotal / mcqQuestionTotal) * 100) : average(modeScores.mcq),
     coding: submissions.length
-      ? Math.round((acceptedSubmissions.length / submissions.length) * 100)
+      ? averageIncludingZero(submissionScores)
       : average(modeScores.coding),
     interview: average(modeScores['face-to-face'])
   };
@@ -247,7 +273,7 @@ function buildProgressSummary({ sessions = [], submissions = [], qaResponses = [
     totalFaceToFaceInterviews: faceSessions.length,
     mcqAccuracy: mcqQuestionTotal ? Math.round((mcqCorrectTotal / mcqQuestionTotal) * 100) : 0,
     codingSuccess: submissions.length
-      ? Math.round((acceptedSubmissions.length / submissions.length) * 100)
+      ? averageIncludingZero(submissionScores)
       : codingSessions.length
         ? Math.round((codingSessions.filter((session) => getSessionScore(session) >= 6).length / codingSessions.length) * 100)
         : 0,

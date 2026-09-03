@@ -71,7 +71,6 @@ const interviewTranscriptSchema = new mongoose.Schema({
 
 // Index for efficient queries
 interviewTranscriptSchema.index({ userId: 1, createdAt: -1 });
-interviewTranscriptSchema.index({ sessionId: 1 });
 interviewTranscriptSchema.index({ status: 1 });
 
 // Method to add question and answer

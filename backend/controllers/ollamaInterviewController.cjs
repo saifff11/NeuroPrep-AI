@@ -7,8 +7,8 @@ const { PDFParse } = require('pdf-parse');
 const fs = require('fs').promises;
 const path = require('path');
 const StudentPerformance = require('../models/StudentPerformance.cjs');
-const mongoose = require('mongoose');
 const aiProvider = require('../services/aiProviderService.cjs');
+const { saveInterviewSession } = require('../services/historyService.cjs');
 
 // Ollama is used locally; production falls through the central AI provider.
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || process.env.OLLAMA_API_URL || 'http://localhost:11434';
@@ -43,6 +43,176 @@ function normalizeQuestionText(question) {
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function cleanAiJsonText(text) {
+  return String(text || '')
+    .replace(/```json\n?/gi, '')
+    .replace(/```\n?/g, '')
+    .trim();
+}
+
+function parseJsonFromAiText(text) {
+  const cleaned = cleanAiJsonText(text);
+  const candidates = [cleaned];
+
+  const firstArray = cleaned.indexOf('[');
+  const lastArray = cleaned.lastIndexOf(']');
+  if (firstArray !== -1 && lastArray > firstArray) {
+    candidates.push(cleaned.slice(firstArray, lastArray + 1));
+  }
+
+  const firstObject = cleaned.indexOf('{');
+  const lastObject = cleaned.lastIndexOf('}');
+  if (firstObject !== -1 && lastObject > firstObject) {
+    candidates.push(cleaned.slice(firstObject, lastObject + 1));
+  }
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch (error) {
+      // Try the next candidate.
+    }
+  }
+
+  throw new Error('AI response was not valid JSON');
+}
+
+function getQuestionArray(parsed) {
+  if (Array.isArray(parsed)) return parsed;
+  if (!parsed || typeof parsed !== 'object') return [];
+
+  const possibleArrays = [
+    parsed.questions,
+    parsed.mcqs,
+    parsed.items,
+    parsed.data,
+    parsed.result
+  ];
+
+  const found = possibleArrays.find(Array.isArray);
+  return found || [parsed];
+}
+
+function normalizeCorrectAnswerIndex(rawQuestion, options) {
+  const rawAnswer = rawQuestion.correctAnswer ??
+    rawQuestion.correct_answer ??
+    rawQuestion.answer ??
+    rawQuestion.correct ??
+    rawQuestion.solution;
+
+  if (typeof rawAnswer === 'number' && rawAnswer >= 0 && rawAnswer < options.length) {
+    return rawAnswer;
+  }
+
+  const answerText = String(rawAnswer ?? '').trim();
+  const numeric = Number(answerText);
+  if (Number.isInteger(numeric) && numeric >= 0 && numeric < options.length) {
+    return numeric;
+  }
+
+  const letter = answerText.match(/^[A-D]$/i)?.[0]?.toUpperCase();
+  if (letter) return letter.charCodeAt(0) - 65;
+
+  const optionPrefix = answerText.match(/^Option\s+([A-D])/i)?.[1]?.toUpperCase();
+  if (optionPrefix) return optionPrefix.charCodeAt(0) - 65;
+
+  const byText = options.findIndex((option) =>
+    normalizeQuestionText(option) === normalizeQuestionText(answerText)
+  );
+  return byText >= 0 ? byText : -1;
+}
+
+function normalizeGeneratedMcqQuestions(text) {
+  const parsed = parseJsonFromAiText(text);
+  return getQuestionArray(parsed)
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+
+      const options = Array.isArray(item.options)
+        ? item.options
+        : [item.optionA, item.optionB, item.optionC, item.optionD].filter(Boolean);
+      const cleanOptions = options.map((option) => String(option || '').trim()).filter(Boolean);
+      const correctAnswer = normalizeCorrectAnswerIndex(item, cleanOptions);
+
+      if (!item.question || cleanOptions.length < 4 || correctAnswer < 0) return null;
+
+      return {
+        question: String(item.question).trim(),
+        options: cleanOptions.slice(0, 4),
+        correctAnswer,
+        explanation: String(item.explanation || item.reason || 'Review the concept and compare each option carefully.').trim()
+      };
+    })
+    .filter(Boolean);
+}
+
+function shuffleItems(items) {
+  return [...items].sort(() => Math.random() - 0.5);
+}
+
+function buildFallbackMcqQuestions(topic, difficulty = 'medium', count = 5, context = {}) {
+  const focus = String(topic || context?.selectedTopic || context?.subject || 'interview fundamentals').trim();
+  const level = String(difficulty || 'medium').toLowerCase();
+  const templates = [
+    {
+      question: `In a ${focus} interview, which answer best demonstrates practical understanding?`,
+      correct: 'Explaining the concept, tradeoffs, and a realistic use case',
+      explanation: `Strong ${focus} answers connect the concept with practical decisions.`
+    },
+    {
+      question: `When debugging a ${focus} issue, what should be checked first?`,
+      correct: 'Reproduce the issue and isolate the smallest failing case',
+      explanation: `A reproducible case helps confirm the real cause before changing the solution.`
+    },
+    {
+      question: `For a ${level} ${focus} question, what makes the response interview-ready?`,
+      correct: 'Clear reasoning, edge cases, complexity, and concise communication',
+      explanation: 'Interviewers evaluate how you think, validate, and communicate, not only the final answer.'
+    },
+    {
+      question: `Which habit most improves long-term quality in ${focus} work?`,
+      correct: 'Checking assumptions, tests, and edge cases before finalizing',
+      explanation: 'Quality improves when behavior is validated against constraints and examples.'
+    },
+    {
+      question: `Which mistake should be avoided while answering ${focus} questions?`,
+      correct: 'Giving memorized definitions without explaining when they apply',
+      explanation: 'Applied understanding is stronger than repeating a definition.'
+    },
+    {
+      question: `What is the best next step after proposing a ${focus} solution?`,
+      correct: 'Discuss constraints, alternatives, and possible improvements',
+      explanation: 'A complete interview answer shows awareness of limits and tradeoffs.'
+    }
+  ];
+
+  const distractors = [
+    'Optimizing before confirming correctness',
+    'Using the most complex approach by default',
+    'Ignoring constraints and edge cases',
+    'Repeating only a textbook definition',
+    'Skipping validation because the idea sounds correct',
+    'Changing multiple things before reproducing the issue',
+    'Focusing only on syntax instead of behavior',
+    'Assuming every problem has the same solution pattern'
+  ];
+
+  return Array.from({ length: Math.max(1, Math.min(20, Number(count) || 5)) }, (_, index) => {
+    const template = shuffleItems(templates)[index % templates.length];
+    const options = shuffleItems([
+      template.correct,
+      ...shuffleItems(distractors.filter((item) => item !== template.correct)).slice(0, 3)
+    ]);
+
+    return {
+      question: template.question,
+      options,
+      correctAnswer: options.indexOf(template.correct),
+      explanation: template.explanation
+    };
+  });
 }
 
 function getRecentMCQQuestions(topic, difficulty) {
@@ -726,8 +896,6 @@ exports.endInterview = async (req, res) => {
     // 💾 SAVE TO INTERVIEWSESSION FOR DASHBOARD
     if (userId && sessionId) {
       try {
-        const InterviewSession = require('../routes/interview.cjs').InterviewSession || mongoose.model('InterviewSession');
-        
         const sessionStartTime = startTime ? new Date(startTime) : new Date(Date.now() - (interviewDuration || 30) * 60 * 1000);
         const sessionEndTime = new Date();
         const timeSpent = Math.floor((sessionEndTime - sessionStartTime) / 1000); // in seconds
@@ -753,11 +921,7 @@ exports.endInterview = async (req, res) => {
           }
         };
         
-        await InterviewSession.findOneAndUpdate(
-          { sessionId: sessionId },
-          sessionData,
-          { upsert: true, new: true }
-        );
+        await saveInterviewSession(sessionData);
         
         console.log('✅ Saved to InterviewSession for dashboard:', sessionId);
       } catch (sessionError) {
@@ -915,27 +1079,7 @@ Return ONLY a valid JSON array matching this structure exactly:
         });
         lastAIResult = response;
 
-        let responseText = response.text || '';
-        responseText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-
-        // Basic bracket fixing
-        if (responseText.startsWith('[') || responseText.startsWith('{')) {
-          const openBrackets = (responseText.match(/\[/g) || []).length;
-          const closeBrackets = (responseText.match(/]/g) || []).length;
-          const openBraces = (responseText.match(/{/g) || []).length;
-          const closeBraces = (responseText.match(/}/g) || []).length;
-
-          if (openBrackets > closeBrackets) responseText += ']'.repeat(openBrackets - closeBrackets);
-          if (openBraces > closeBraces) responseText += '}'.repeat(openBraces - closeBraces);
-        }
-
-        let parsed = JSON.parse(responseText);
-        let batchQuestions = Array.isArray(parsed) ? parsed : (typeof parsed === 'object' ? [parsed] : []);
-
-        const validBatch = batchQuestions.filter(q => 
-          q.question && Array.isArray(q.options) && q.options.length >= 4 &&
-          typeof q.correctAnswer === 'number' && q.correctAnswer >= 0 && q.correctAnswer < q.options.length
-        );
+        const validBatch = normalizeGeneratedMcqQuestions(response.text || '');
         const uniqueBatch = validBatch.filter(q => {
           const normalized = normalizeQuestionText(q.question);
           if (!normalized || usedQuestionTexts.has(normalized)) return false;
@@ -962,7 +1106,21 @@ Return ONLY a valid JSON array matching this structure exactly:
     console.log(`⏱️ Total Response time: ${responseTime}ms`);
 
     if (allQuestions.length === 0) {
-      throw new Error('No valid questions generated from any batch');
+      const fallbackQuestions = buildFallbackMcqQuestions(topic, difficulty, requestedCount, context);
+      rememberMCQQuestions(topic, difficulty, fallbackQuestions);
+
+      return res.json({
+        success: true,
+        fallback: true,
+        warning: 'AI provider did not return valid MCQs, so offline practice questions were loaded.',
+        questions: fallbackQuestions,
+        count: fallbackQuestions.length,
+        topic,
+        difficulty,
+        variationSeed: requestSeed,
+        source: 'offline-fallback',
+        model: 'built-in'
+      });
     }
 
     rememberMCQQuestions(topic, difficulty, allQuestions);
@@ -990,11 +1148,24 @@ Return ONLY a valid JSON array matching this structure exactly:
     console.error('═══════════════════════════════════════════════════════');
     console.error('');
 
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-      topic: req.body.topic,
-      source: 'ollama-error'
+    const fallbackPayload = req.body || {};
+    const fallbackQuestions = buildFallbackMcqQuestions(
+      fallbackPayload.topic,
+      fallbackPayload.difficulty,
+      fallbackPayload.count,
+      fallbackPayload.context
+    );
+
+    return res.json({
+      success: true,
+      fallback: true,
+      warning: 'AI provider failed, so offline practice questions were loaded.',
+      questions: fallbackQuestions,
+      count: fallbackQuestions.length,
+      topic: fallbackPayload.topic,
+      difficulty: fallbackPayload.difficulty || 'medium',
+      source: 'offline-fallback',
+      model: 'built-in'
     });
   }
 };

@@ -6,6 +6,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { Loader, Video, Volume2, AlertCircle, Sparkles } from 'lucide-react';
+import { getCapabilities } from '../../services/CapabilityService';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
@@ -24,6 +25,7 @@ const Avatar3D = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [useFallback, setUseFallback] = useState(!enableSadTalker); // Use SadTalker if enabled
   const [sadTalkerAvailable, setSadTalkerAvailable] = useState(false);
+  const [avatarCapability, setAvatarCapability] = useState(null);
   const [generationProgress, setGenerationProgress] = useState(0);
   const previousTextRef = useRef('');
 
@@ -31,6 +33,16 @@ const Avatar3D = ({
   useEffect(() => {
     const checkSadTalkerService = async () => {
       try {
+        const capabilities = await getCapabilities();
+        const avatarFeature = capabilities.features?.avatar;
+        setAvatarCapability(avatarFeature);
+
+        if (!avatarFeature?.available) {
+          setUseFallback(true);
+          setSadTalkerAvailable(false);
+          return;
+        }
+
         const response = await axios.get(`${API_BASE_URL}/api/avatar/health`, {
           timeout: 3000
         });
@@ -50,11 +62,12 @@ const Avatar3D = ({
   // Generate avatar video when text changes (only if not using fallback)
   useEffect(() => {
     if (!textToSpeak || useFallback || !sadTalkerAvailable) return;
+    if (avatarCapability && !avatarCapability.available) return;
     if (textToSpeak === previousTextRef.current) return;
     
     previousTextRef.current = textToSpeak;
     generateAvatarVideo(textToSpeak);
-  }, [textToSpeak, useFallback, sadTalkerAvailable]);
+  }, [textToSpeak, useFallback, sadTalkerAvailable, avatarCapability]);
 
   // Play audio through text-to-speech
   useEffect(() => {
@@ -80,6 +93,11 @@ const Avatar3D = ({
   }, [textToSpeak, disableAudio]);
 
   const generateAvatarVideo = async (text) => {
+    if (!avatarCapability?.available) {
+      setUseFallback(true);
+      return;
+    }
+
     try {
       setIsGenerating(true);
       setError(null);
@@ -282,7 +300,7 @@ const Avatar3D = ({
       )}
 
       {/* Show SadTalker status */}
-      {sadTalkerAvailable && (
+      {sadTalkerAvailable && avatarCapability?.available && (
         <button
           onClick={() => setUseFallback(false)}
           className="absolute top-4 right-4 bg-green-500/90 hover:bg-green-600/90 backdrop-blur-sm text-white text-xs px-3 py-1.5 rounded-lg shadow-lg transition-colors flex items-center gap-1.5 z-20"
@@ -291,6 +309,15 @@ const Avatar3D = ({
           <Video className="w-3 h-3" />
           Enable Video Avatar
         </button>
+      )}
+
+      {enableSadTalker && avatarCapability && !avatarCapability.available && (
+        <div
+          className="absolute top-4 right-4 bg-slate-900/80 backdrop-blur-sm text-white text-xs px-3 py-1.5 rounded-lg shadow-lg z-20"
+          title={avatarCapability.reason}
+        >
+          Video avatar coming soon
+        </div>
       )}
 
       {/* Error indicator */}

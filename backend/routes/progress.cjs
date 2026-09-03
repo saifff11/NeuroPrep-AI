@@ -1,31 +1,25 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const QAInteraction = require('../models/QAInteraction.cjs');
 const ResumeAnalysis = require('../models/ResumeAnalysis.cjs');
 const Submission = require('../models/Submission.cjs');
 const StudentPerformance = require('../models/StudentPerformance.cjs');
+const InterviewSession = require('../models/InterviewSession.cjs');
+const { saveInterviewSession } = require('../services/historyService.cjs');
 const { buildPlacementReadiness, buildProgressSummary, getTimeframeStart } = require('../utils/progressSummary.cjs');
 
 const router = express.Router();
-
-function getInterviewSessionModel() {
-  return mongoose.models.InterviewSession || null;
-}
 
 router.get('/user-progress/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const since = getTimeframeStart(req.query.timeframe || 'all');
     const dateFilter = since ? { $gte: since } : null;
-    const InterviewSession = getInterviewSessionModel();
 
-    const [sessions, submissions, qaResponses, performance, latestResumeAnalysis] = await Promise.all([
-      InterviewSession
-        ? InterviewSession.find({
-            userId,
-            ...(dateFilter ? { createdAt: dateFilter } : {})
-          }).sort({ createdAt: -1 }).lean()
-        : [],
+    const [sessions, submissions, qaResponses, performance, resumeAnalyses] = await Promise.all([
+      InterviewSession.find({
+        userId,
+        ...(dateFilter ? { createdAt: dateFilter } : {})
+      }).sort({ createdAt: -1 }).lean(),
       Submission.find({
         userId,
         ...(dateFilter ? { submittedAt: dateFilter } : {})
@@ -35,8 +29,12 @@ router.get('/user-progress/:userId', async (req, res) => {
         ...(dateFilter ? { answeredAt: dateFilter } : {})
       }).sort({ answeredAt: -1 }).lean(),
       StudentPerformance.findOne({ userId }).lean().catch(() => null),
-      ResumeAnalysis.findOne({ userId }).sort({ createdAt: -1 }).lean().catch(() => null)
+      ResumeAnalysis.find({
+        userId,
+        ...(dateFilter ? { createdAt: dateFilter } : {})
+      }).sort({ createdAt: -1 }).limit(10).lean().catch(() => [])
     ]);
+    const latestResumeAnalysis = resumeAnalyses[0] || null;
 
     const filteredPerformance = performance && since
       ? {
@@ -49,6 +47,7 @@ router.get('/user-progress/:userId', async (req, res) => {
       sessions,
       submissions,
       qaResponses,
+      resumeAnalyses,
       performance: filteredPerformance
     });
 
@@ -57,6 +56,7 @@ router.get('/user-progress/:userId', async (req, res) => {
       progress: {
         ...progress,
         latestResumeAnalysis,
+        resumeHistory: resumeAnalyses,
         placementReadiness: buildPlacementReadiness(progress, latestResumeAnalysis)
       },
       message: 'User progress retrieved from database'
@@ -73,40 +73,27 @@ router.get('/user-progress/:userId', async (req, res) => {
 
 router.post('/store-mcq-session', async (req, res) => {
   try {
-    const InterviewSession = getInterviewSessionModel();
-    if (!InterviewSession) {
-      return res.status(503).json({ success: false, error: 'Interview session model is not available' });
-    }
-
     const payload = req.body || {};
     const sessionId = payload.sessionId || `mcq_${Date.now()}_${payload.userId || 'guest'}`;
     const totalQuestions = Number(payload.totalQuestions || 0);
     const correctAnswers = Number(payload.correctAnswers || 0);
 
-    const doc = await InterviewSession.findOneAndUpdate(
-      { sessionId },
-      {
-        sessionId,
-        userId: payload.userId || 'guest',
-        topic: payload.topic || 'General MCQ',
-        difficulty: payload.difficulty || 'medium',
-        duration: payload.duration || Math.ceil(Number(payload.timeSpent || 0) / 60) || 10,
-        interviewType: 'mcq',
-        startTime: payload.startTime || new Date(),
-        endTime: payload.endTime || new Date(),
-        timeSpent: Number(payload.timeSpent || 0),
-        totalQuestions,
-        answeredQuestions: Number(payload.answeredQuestions || totalQuestions),
-        correctAnswers,
-        questions: payload.questions || [],
-        answers: payload.answers || [],
-        assessment: payload.assessment || {
-          overallScore: totalQuestions ? Math.round((correctAnswers / totalQuestions) * 100) / 10 : 0
-        },
-        updatedAt: new Date()
+    const doc = await saveInterviewSession({
+      ...payload,
+      sessionId,
+      userId: payload.userId || 'guest',
+      topic: payload.topic || 'General MCQ',
+      difficulty: payload.difficulty || 'medium',
+      duration: payload.duration || Math.ceil(Number(payload.timeSpent || 0) / 60) || 10,
+      interviewType: 'mcq',
+      totalQuestions,
+      answeredQuestions: Number(payload.answeredQuestions || totalQuestions),
+      correctAnswers,
+      assessment: payload.assessment || {
+        overallScore: totalQuestions ? Math.round((correctAnswers / totalQuestions) * 100) / 10 : 0
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+      source: 'progress-route'
+    });
 
     res.json({
       success: true,
@@ -126,40 +113,29 @@ router.post('/store-mcq-session', async (req, res) => {
 
 router.post('/store-coding-session', async (req, res) => {
   try {
-    const InterviewSession = getInterviewSessionModel();
-    if (!InterviewSession) {
-      return res.status(503).json({ success: false, error: 'Interview session model is not available' });
-    }
-
     const payload = req.body || {};
     const sessionId = payload.sessionId || `coding_${Date.now()}_${payload.userId || 'guest'}`;
     const totalQuestions = Number(payload.totalProblems || payload.totalQuestions || 1);
     const solvedProblems = Number(payload.solvedProblems || payload.correctAnswers || 0);
 
-    const doc = await InterviewSession.findOneAndUpdate(
-      { sessionId },
-      {
-        sessionId,
-        userId: payload.userId || 'guest',
-        topic: payload.topic || 'Coding Practice',
-        difficulty: payload.difficulty || 'medium',
-        duration: payload.duration || Math.ceil(Number(payload.timeSpent || 0) / 60) || 30,
-        interviewType: 'coding',
-        startTime: payload.startTime || new Date(),
-        endTime: payload.endTime || new Date(),
-        timeSpent: Number(payload.timeSpent || 0),
-        totalQuestions,
-        answeredQuestions: solvedProblems,
-        correctAnswers: solvedProblems,
-        questions: payload.problems || payload.questions || [],
-        answers: payload.solutions || payload.answers || [],
-        assessment: payload.assessment || {
-          overallScore: totalQuestions ? Math.round((solvedProblems / totalQuestions) * 100) / 10 : 0
-        },
-        updatedAt: new Date()
+    const doc = await saveInterviewSession({
+      ...payload,
+      sessionId,
+      userId: payload.userId || 'guest',
+      topic: payload.topic || 'Coding Practice',
+      difficulty: payload.difficulty || 'medium',
+      duration: payload.duration || Math.ceil(Number(payload.timeSpent || 0) / 60) || 30,
+      interviewType: 'coding',
+      totalQuestions,
+      answeredQuestions: solvedProblems,
+      correctAnswers: solvedProblems,
+      questions: payload.problems || payload.questions || [],
+      answers: payload.solutions || payload.answers || [],
+      assessment: payload.assessment || {
+        overallScore: totalQuestions ? Math.round((solvedProblems / totalQuestions) * 100) / 10 : 0
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+      source: 'progress-route'
+    });
 
     res.json({
       success: true,

@@ -5,6 +5,7 @@ const {
   analyzeResumeText,
   detectSkills,
   getTargetSkills,
+  normalizeInterviewQuestions,
   skillAppearsInText
 } = require('../services/resumeAnalyzerService.cjs');
 
@@ -57,6 +58,8 @@ test('analyzes ATS score, matched skills, missing skills, roadmap, and interview
   assert.ok(analysis.missingSkills.includes('AWS'));
   assert.equal(analysis.roadmap.weeks.length, 4);
   assert.ok(analysis.interviewQuestions.length >= 4);
+  assert.equal(typeof analysis.interviewQuestions[0], 'object');
+  assert.equal(typeof analysis.interviewQuestions[0].question, 'string');
 });
 
 test('detects skills with categories for UI grouping', () => {
@@ -65,4 +68,23 @@ test('detects skills with categories for UI grouping', () => {
 
   assert.deepEqual(names, ['React', 'Node.js', 'MongoDB', 'Docker', 'AWS']);
   assert.ok(skills.every((skill) => skill.category));
+});
+
+test('normalizes legacy string interview questions into object shape', () => {
+  const questions = normalizeInterviewQuestions([
+    'How would you explain Docker in a backend interview?',
+    {
+      topic: 'AWS',
+      question: 'How would you deploy a backend project on AWS?'
+    }
+  ]);
+
+  assert.deepEqual(questions[0], {
+    topic: 'Resume Gap',
+    difficulty: 'medium',
+    type: 'skill-gap',
+    question: 'How would you explain Docker in a backend interview?'
+  });
+  assert.equal(questions[1].topic, 'AWS');
+  assert.equal(questions[1].difficulty, 'medium');
 });

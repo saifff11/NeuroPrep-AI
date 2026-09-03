@@ -67,11 +67,10 @@ class OllamaService {
         timeout: 60000
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
       const data = await response.json();
+      if (!response.ok || data.success === false) {
+        throw new Error(data.error || data.details || `HTTP ${response.status}: ${response.statusText}`);
+      }
 
       if (data.success && Array.isArray(data.questions)) {
         this.rememberQuestions(topic, difficulty, data.questions);
@@ -79,7 +78,7 @@ class OllamaService {
         return {
           success: true,
           questions: data.questions,
-          source: 'ollama-backend'
+          source: data.source || data.metadata?.source || 'ai-backend'
         };
       } else {
         throw new Error(data.error || 'Invalid response format');
@@ -91,10 +90,11 @@ class OllamaService {
       const fallbackQuestions = this.getFallbackMCQs(topic, count);
       this.rememberQuestions(topic, difficulty, fallbackQuestions);
       return {
-        success: false,
-        error: error.message,
+        success: true,
+        fallback: true,
+        warning: error.message,
         questions: fallbackQuestions,
-        source: 'fallback'
+        source: 'offline-fallback'
       };
     }
   }

@@ -51,6 +51,21 @@ const normalizeDifficulty = (value) => (
   ['easy', 'medium', 'hard'].includes(value) ? value : 'medium'
 );
 
+const sanitizeInterviewQuestionText = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return '';
+
+  return text
+    .replace(/\s*,?\s*as inspired by the interview_[a-z0-9_-]+\s+seed\??/gi, '?')
+    .replace(/\s*,?\s*as inspired by [a-z0-9_-]+\s+seed\??/gi, '?')
+    .replace(/\s*,?\s*using the freshness seed [a-z0-9_-]+\??/gi, '?')
+    .replace(/\s*freshness seed[:\s]+[a-z0-9_-]+/gi, '')
+    .replace(/\s+([?.!,])/g, '$1')
+    .replace(/\?{2,}/g, '?')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+};
+
 const FaceToFaceInterview = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -313,7 +328,7 @@ const FaceToFaceInterview = () => {
           const questionData = questionResponse.data.question;
           
           // Backend returns {number, total, text, category, compilerRequired} - extract the data
-          const questionText = typeof questionData === 'string' ? questionData : questionData.text;
+          const questionText = sanitizeInterviewQuestionText(typeof questionData === 'string' ? questionData : questionData.text);
           const questionCategory = typeof questionData === 'object' ? questionData.category : (questionResponse.data.category || 'Technical');
           const needsCompiler = typeof questionData === 'object' ? questionData.compilerRequired : false;
           
@@ -1166,11 +1181,11 @@ const FaceToFaceInterview = () => {
   return (
     <div 
       ref={containerRef}
-      className={`saas-grid min-h-screen bg-slate-50 ${
-        isFullscreen ? 'p-2' : 'p-4'
+      className={`saas-grid bg-slate-50 ${
+        isFullscreen ? 'h-screen overflow-hidden p-2' : 'min-h-screen p-4'
       }`}
     >
-      <div className="max-w-7xl mx-auto h-full">
+      <div className={`mx-auto h-full w-full ${isFullscreen ? 'max-w-none' : 'max-w-7xl'}`}>
         
         {/* Setup Phase */}
         {interviewPhase === 'setup' && (
@@ -1381,7 +1396,11 @@ const FaceToFaceInterview = () => {
 
         {/* Interview Phase */}
         {interviewPhase === 'interview' && (
-          <div className="grid gap-4 min-h-screen lg:grid-cols-2">
+          <div className={`grid gap-4 ${
+            isFullscreen
+              ? 'h-full min-h-0 overflow-hidden lg:grid-cols-[minmax(300px,0.95fr)_minmax(420px,1.05fr)]'
+              : 'min-h-screen lg:grid-cols-2'
+          }`}>
             
             {/* Compiler Modal Popup (only when coding required) */}
             <AnimatePresence>
@@ -1474,21 +1493,21 @@ const FaceToFaceInterview = () => {
             </AnimatePresence>
 
             {/* AI Interviewer Side */}
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden flex flex-col border border-slate-200">
-              <div className="bg-slate-950 text-white p-5 flex justify-between items-center">
+            <div className={`bg-white rounded-lg shadow-sm overflow-hidden flex flex-col border border-slate-200 ${isFullscreen ? 'min-h-0' : ''}`}>
+              <div className={`bg-slate-950 text-white flex justify-between items-center ${isFullscreen ? 'p-4' : 'p-5'}`}>
                 <div>
-                  <h2 className="font-bold text-2xl">AI Interviewer</h2>
+                  <h2 className={`font-bold text-white ${isFullscreen ? 'text-xl' : 'text-2xl'}`}>AI Interviewer</h2>
                   <p className="text-slate-400 text-sm mt-1">{interviewConfig.topic}</p>
                 </div>
                 <div className="text-right">
-                  <div className="font-bold tabular-nums text-3xl">{formatTime(timeRemaining)}</div>
+                  <div className={`font-bold tabular-nums ${isFullscreen ? 'text-2xl' : 'text-3xl'}`}>{formatTime(timeRemaining)}</div>
                   <div className="text-xs opacity-95 uppercase tracking-wide">Time</div>
                 </div>
               </div>
               
-              <div className="flex-1 flex items-center justify-center bg-slate-50 p-8">
+              <div className={`flex-1 min-h-0 flex items-center justify-center bg-slate-50 ${isFullscreen ? 'p-4' : 'p-8'}`}>
                 <Avatar3D 
-                  textToSpeak={questions[currentQuestionIndex]?.question || ''}
+                  textToSpeak={sanitizeInterviewQuestionText(questions[currentQuestionIndex]?.question) || ''}
                   expression={avatarExpression}
                   feedbackText={avatarFeedback}
                   enableSadTalker={true}
@@ -1496,7 +1515,7 @@ const FaceToFaceInterview = () => {
                 />
               </div>
 
-              <div className="bg-white border-t border-slate-200 p-5">
+              <div className={`bg-white border-t border-slate-200 ${isFullscreen ? 'p-3' : 'p-5'}`}>
                 <div className="flex justify-between items-center mb-2">
                   <span className="font-semibold text-gray-700 text-sm">
                     Q {currentQuestionIndex + 1}/{questions.length}
@@ -1515,11 +1534,11 @@ const FaceToFaceInterview = () => {
             </div>
 
             {/* User Side - Camera + Questions */}
-            <div className="space-y-4">
+            <div className={isFullscreen ? 'flex min-h-0 flex-col gap-3 overflow-hidden' : 'space-y-4'}>
               
               {/* User Camera with Face Detection */}
-              <div className="bg-white rounded-lg shadow-sm overflow-hidden border border-slate-200">
-                <div className="bg-slate-900 text-white flex justify-between items-center p-4">
+              <div className={`bg-white rounded-lg shadow-sm overflow-hidden border border-slate-200 ${isFullscreen ? 'shrink-0' : ''}`}>
+                <div className={`bg-slate-900 text-white flex justify-between items-center ${isFullscreen ? 'p-3' : 'p-4'}`}>
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold text-base">Your Camera</h3>
                     <div className="flex items-center gap-2">
@@ -1543,7 +1562,7 @@ const FaceToFaceInterview = () => {
                   </button>
                 </div>
                 
-                <div className="relative bg-gray-900 aspect-video">
+                <div className={`relative bg-gray-900 ${isFullscreen ? 'h-[28vh] min-h-[150px] max-h-[300px]' : 'aspect-video'}`}>
                   <Webcam
                     ref={webcamRef}
                     audio={false}
@@ -1559,14 +1578,16 @@ const FaceToFaceInterview = () => {
               </div>
 
               {/* Current Question & Answer */}
-              <div className="bg-white rounded-lg shadow-sm p-6 border border-slate-200">
-                <h3 className="font-bold text-gray-800 mb-4 flex items-center text-lg">
+              <div className={`bg-white rounded-lg shadow-sm border border-slate-200 ${
+                isFullscreen ? 'min-h-0 flex-1 overflow-y-auto p-4' : 'p-6'
+              }`}>
+                <h3 className={`font-bold text-gray-800 flex items-center text-lg ${isFullscreen ? 'mb-3' : 'mb-4'}`}>
                   <span className="text-blue-600 mr-2">❓</span>
                   Current Question:
                 </h3>
-                <div className="bg-slate-50 p-5 rounded-lg mb-5 border border-slate-200">
-                  <p className="text-gray-800 font-medium leading-relaxed">
-                    {questions[currentQuestionIndex]?.question || 'Loading question...'}
+                <div className={`bg-slate-50 rounded-lg border border-slate-200 ${isFullscreen ? 'p-4 mb-3' : 'p-5 mb-5'}`}>
+                  <p className={`text-gray-800 font-medium leading-relaxed ${isFullscreen ? 'text-sm' : ''}`}>
+                    {sanitizeInterviewQuestionText(questions[currentQuestionIndex]?.question) || 'Loading question...'}
                   </p>
                   {questions[currentQuestionIndex]?.compilerRequired && (
                     <div className="mt-3 flex items-center gap-2">
@@ -1585,7 +1606,7 @@ const FaceToFaceInterview = () => {
                   )}
                 </div>
 
-                <h4 className="font-bold text-gray-700 mb-3 flex items-center justify-between">
+                <h4 className={`font-bold text-gray-700 flex items-center justify-between ${isFullscreen ? 'mb-2' : 'mb-3'}`}>
                   <span className="flex items-center">
                     <span className="text-green-600 mr-2">💬</span>
                     Your Answer:
@@ -1602,26 +1623,26 @@ const FaceToFaceInterview = () => {
                 
                 {/* AI Evaluation Progress Indicator */}
                 {isEvaluating && (
-                  <div className="mb-4 p-5 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 border-2 border-blue-400 rounded-xl shadow-lg">
-                    <div className="flex items-start gap-4">
+                  <div className={`bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 border-2 border-blue-400 rounded-xl shadow-lg ${isFullscreen ? 'mb-3 p-3' : 'mb-4 p-5'}`}>
+                    <div className={`flex items-start ${isFullscreen ? 'gap-3' : 'gap-4'}`}>
                       <div className="relative flex-shrink-0">
-                        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                        <div className={`${isFullscreen ? 'h-9 w-9' : 'w-12 h-12'} border-4 border-blue-600 border-t-transparent rounded-full animate-spin`}></div>
                         <div className="absolute inset-0 flex items-center justify-center">
                           <span className="text-xl">🤖</span>
                         </div>
                       </div>
                       <div className="flex-1">
-                        <p className="font-bold text-blue-900 text-lg mb-2 flex items-center gap-2">
+                        <p className={`font-bold text-blue-900 flex items-center gap-2 ${isFullscreen ? 'mb-1 text-sm' : 'text-lg mb-2'}`}>
                           <span>AI is Checking: Is Your Answer CORRECT?</span>
                           <span className="animate-pulse">...</span>
                         </p>
-                        <div className="bg-white/70 rounded-lg p-3 mb-2 border border-blue-200">
+                        <div className={`bg-white/70 rounded-lg mb-2 border border-blue-200 ${isFullscreen ? 'p-2' : 'p-3'}`}>
                           <p className="text-xs text-blue-600 font-medium mb-1">Question being evaluated:</p>
                           <p className="text-sm text-blue-900 font-medium italic">
-                            "{questions[currentQuestionIndex]?.question.substring(0, 120)}..."
+                            "{sanitizeInterviewQuestionText(questions[currentQuestionIndex]?.question).substring(0, 120)}..."
                           </p>
                         </div>
-                        <p className="text-sm text-blue-700 font-medium">
+                        <p className={`${isFullscreen ? 'hidden' : 'text-sm'} text-blue-700 font-medium`}>
                           ⚡ Ollama AI is verifying if your answer is factually correct and relevant
                         </p>
                         <p className="text-xs text-blue-600 mt-1">
@@ -1634,7 +1655,7 @@ const FaceToFaceInterview = () => {
                 
                 {/* Voice Answer Display */}
                 {isListening && (
-                  <div className="bg-red-50 p-4 rounded-xl mb-3 border-2 border-red-200">
+                  <div className={`bg-red-50 rounded-xl mb-3 border-2 border-red-200 ${isFullscreen ? 'p-3' : 'p-4'}`}>
                     <div className="flex items-center gap-2 text-red-600 font-semibold mb-2">
                       <div className="w-2.5 h-2.5 bg-red-600 rounded-full animate-pulse"></div>
                       Recording your answer...
@@ -1649,15 +1670,17 @@ const FaceToFaceInterview = () => {
                   onChange={(e) => setCurrentAnswer(e.target.value)}
                   placeholder="Type your answer here, or use voice recording below..."
                   disabled={isAISpeaking}
-                  className="w-full bg-white p-4 rounded-lg mb-5 min-h-[120px] border border-slate-300 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100 resize-none text-slate-800 leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className={`w-full bg-white rounded-lg border border-slate-300 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100 resize-none text-slate-800 leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                    isFullscreen ? 'min-h-[88px] p-3 mb-3 text-sm' : 'min-h-[120px] p-4 mb-5'
+                  }`}
                 />
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className={`grid grid-cols-2 gap-3 ${isFullscreen ? 'sticky bottom-0 bg-white pt-2' : ''}`}>
                   {!isListening ? (
                     <button
                       onClick={startListening}
                       disabled={isAISpeaking}
-                      className="bg-rose-600 text-white py-3.5 rounded-md font-semibold hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all"
+                      className={`bg-rose-600 text-white rounded-md font-semibold hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all ${isFullscreen ? 'py-3' : 'py-3.5'}`}
                     >
                       <span className="text-xl">🎤</span>
                       <span>Voice Input</span>
@@ -1665,7 +1688,7 @@ const FaceToFaceInterview = () => {
                   ) : (
                     <button
                       onClick={stopListening}
-                      className="bg-slate-700 text-white py-3.5 rounded-md font-semibold hover:bg-slate-800 flex items-center justify-center gap-2 transition-all"
+                      className={`bg-slate-700 text-white rounded-md font-semibold hover:bg-slate-800 flex items-center justify-center gap-2 transition-all ${isFullscreen ? 'py-3' : 'py-3.5'}`}
                     >
                       <span className="text-xl">⏸️</span>
                       <span>Stop Recording</span>
@@ -1675,7 +1698,7 @@ const FaceToFaceInterview = () => {
                   <button
                     onClick={submitAnswer}
                     disabled={!currentAnswer.trim() || isAISpeaking || isEvaluating}
-                    className="bg-cyan-600 text-white py-3.5 rounded-md font-semibold hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all relative overflow-hidden"
+                    className={`bg-cyan-600 text-white rounded-md font-semibold hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all relative overflow-hidden ${isFullscreen ? 'py-3' : 'py-3.5'}`}
                   >
                     {isEvaluating && (
                       <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 animate-pulse"></div>
@@ -1696,7 +1719,7 @@ const FaceToFaceInterview = () => {
                   </button>
                 </div>
 
-                <div className="mt-5 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <div className={`mt-5 p-4 bg-slate-50 rounded-lg border border-slate-200 ${isFullscreen ? 'hidden' : ''}`}>
                   <p className="text-center text-sm text-slate-700 font-medium">
                     💡 Pro tip: <strong>Type your answer</strong> in the text box above, or use <kbd className="px-2 py-1 bg-white rounded border border-blue-300 font-mono text-xs">Ctrl+Space</kbd> for voice recording
                   </p>

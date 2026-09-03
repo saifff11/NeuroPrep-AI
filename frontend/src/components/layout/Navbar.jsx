@@ -19,7 +19,7 @@ import { useAuth } from '../../contexts/AuthContext';
 const navLinks = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Practice', href: '/practice', icon: PlayCircle },
-  { name: 'Roadmaps', href: '/interview-preparation', icon: BrainCircuit },
+  { name: 'Interview Preparation', href: '/interview-preparation', icon: BrainCircuit },
   { name: 'Resume', href: '/resume-analyzer', icon: FileText },
   { name: 'Contests', href: '/contests', icon: Trophy },
 ];

@@ -15,6 +15,42 @@ async function postJudge0(path, payload) {
   return data.result;
 }
 
+const health = async () => {
+  try {
+    const response = await fetch(`${API_BASE}/api/judge0/health`);
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || data.success === false) {
+      throw new Error(data.error || `Judge0 health check failed with ${response.status}`);
+    }
+
+    return {
+      configured: Boolean(data.judge0?.configured),
+      provider: data.judge0?.provider || 'none',
+      providerPreference: data.judge0?.providerPreference || 'auto',
+      baseUrl: data.judge0?.baseUrl || '',
+      host: data.judge0?.host || '',
+      localRunnerEnabled: Boolean(data.judge0?.localRunnerEnabled),
+      supportedLocalLanguages: data.judge0?.supportedLocalLanguages || [],
+      warning: data.judge0?.warning || null,
+      error: null
+    };
+  } catch (error) {
+    console.error('Judge0 health check failed:', error);
+    return {
+      configured: false,
+      provider: 'none',
+      providerPreference: 'auto',
+      baseUrl: '',
+      host: '',
+      localRunnerEnabled: false,
+      supportedLocalLanguages: [],
+      warning: null,
+      error: error.message || 'Failed to reach backend compiler service'
+    };
+  }
+};
+
 const runOnce = async ({ code, languageId, stdin = '' }) => {
   try {
     return await postJudge0('/run', { code, languageId, stdin });
@@ -56,5 +92,5 @@ const runBatch = async ({ code, languageId, testCases = [] }) => {
   }
 };
 
-const judge0Client = { runOnce, runBatch };
+const judge0Client = { health, runOnce, runBatch };
 export default judge0Client;

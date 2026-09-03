@@ -1,7 +1,15 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { getSubmissionsByContest } from '../services/SubmissionsService';
+import React, { useEffect, useMemo, useState } from 'react';
+import { getSubmissionsByContest } from '../../services/SubmissionsService.mongodb';
 
 const PAGE_SIZE = 8;
+
+const getSubmissionDate = (submission) => (
+  submission.submittedAt || submission.created_at || submission.createdAt || submission.updatedAt
+);
+
+const getSubmissionPoints = (submission) => (
+  submission.pointsAwarded ?? submission.score ?? submission.marksObtained ?? 0
+);
 
 const SubmissionsPanel = ({ contestId }) => {
   const [subs, setSubs] = useState([]);
@@ -13,73 +21,140 @@ const SubmissionsPanel = ({ contestId }) => {
   useEffect(() => { setPage(1); }, [usernameFilter, verdictFilter]);
 
   useEffect(() => {
-    if (!contestId) return setSubs([]);
+    if (!contestId) {
+      setSubs([]);
+      return;
+    }
+
+    let mounted = true;
     setLoading(true);
     (async () => {
       try {
         const data = await getSubmissionsByContest(contestId);
-        setSubs(data || []);
+        if (mounted) setSubs(data || []);
       } catch (err) {
         console.error('Failed to load submissions:', err);
-        setSubs([]);
-      } finally { setLoading(false); }
+        if (mounted) setSubs([]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
     })();
+
+    return () => { mounted = false; };
   }, [contestId]);
 
-  const filtered = useMemo(() => {
-    return subs.filter(s => {
-      if (usernameFilter && !(s.username || s.user_id || '').toLowerCase().includes(usernameFilter.toLowerCase())) return false;
-      if (verdictFilter && !(s.verdict || s.result?.verdict || '').toLowerCase().includes(verdictFilter.toLowerCase())) return false;
+  const filtered = useMemo(() => (
+    subs.filter((submission) => {
+      const username = submission.username || submission.userId || submission.user_id || '';
+      const verdict = submission.verdict || submission.status || submission.result?.verdict || '';
+      if (usernameFilter && !username.toLowerCase().includes(usernameFilter.toLowerCase())) return false;
+      if (verdictFilter && !verdict.toLowerCase().includes(verdictFilter.toLowerCase())) return false;
       return true;
-    });
-  }, [subs, usernameFilter, verdictFilter]);
+    })
+  ), [subs, usernameFilter, verdictFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const downloadCSV = () => {
-    const header = ['submission_id','username','user_id','problem_index','verdict','status','time','memory','created_at'];
+    const header = ['submission_id', 'username', 'user_id', 'problem_title', 'problem_index', 'points', 'verdict', 'status', 'time', 'memory', 'created_at'];
     const lines = [header.join(',')];
-    filtered.forEach(s => {
-      const row = [s.id, (s.username || '').replace(/"/g,'""'), s.user_id || '', s.problem_index ?? s.problemIndex ?? '', s.verdict || '', s.status || '', s.time ?? '', s.memory ?? '', s.created_at || s.createdAt || ''];
-      lines.push(row.map(c => `"${String(c).replace(/"/g,'""') }"`).join(','));
+
+    filtered.forEach((submission) => {
+      const row = [
+        submission.id || submission._id,
+        submission.username || '',
+        submission.userId || submission.user_id || '',
+        submission.problemTitle || '',
+        submission.problem_index ?? submission.problemIndex ?? '',
+        getSubmissionPoints(submission),
+        submission.verdict || '',
+        submission.status || '',
+        submission.executionTime ?? submission.time ?? '',
+        submission.memory ?? '',
+        getSubmissionDate(submission) || ''
+      ];
+      lines.push(row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','));
     });
+
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `submissions_${contestId || 'contest'}.csv`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `submissions_${contestId || 'contest'}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
   };
 
-  if (!contestId) return <div className="p-4 text-sm text-gray-600">No contest context provided. Submissions are only available within a contest.</div>;
-  if (loading) return <div className="p-4 text-sm text-gray-600">Loading submissions...</div>;
-  if (!subs || subs.length === 0) return <div className="p-4 text-sm text-gray-600">No submissions yet for this contest.</div>;
+  if (!contestId) {
+    return <div className="p-4 text-sm text-gray-600">No contest context provided. Submissions are only available within a contest.</div>;
+  }
+
+  if (loading) {
+    return <div className="p-4 text-sm text-gray-600">Loading submissions...</div>;
+  }
+
+  if (!subs.length) {
+    return <div className="p-4 text-sm text-gray-600">No submissions yet for this contest.</div>;
+  }
 
   return (
     <div className="p-4 text-sm text-gray-700">
-      <div className="flex items-center gap-2 mb-3">
-        <input placeholder="Filter by username" value={usernameFilter} onChange={e=>setUsernameFilter(e.target.value)} className="px-3 py-1 border rounded" />
-        <input placeholder="Filter by verdict" value={verdictFilter} onChange={e=>setVerdictFilter(e.target.value)} className="px-3 py-1 border rounded" />
-        <button onClick={downloadCSV} className="ml-auto px-3 py-1 bg-blue-600 text-white rounded">Export CSV</button>
+      <div className="mb-3 flex items-center gap-2">
+        <input
+          placeholder="Filter by username"
+          value={usernameFilter}
+          onChange={(event) => setUsernameFilter(event.target.value)}
+          className="rounded border px-3 py-1"
+        />
+        <input
+          placeholder="Filter by verdict"
+          value={verdictFilter}
+          onChange={(event) => setVerdictFilter(event.target.value)}
+          className="rounded border px-3 py-1"
+        />
+        <button onClick={downloadCSV} className="ml-auto rounded bg-blue-600 px-3 py-1 text-white">
+          Export CSV
+        </button>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-3">
-        {pageItems.map(s => (
-          <div key={s.id} className="p-3 rounded border bg-white">
-            <div className="flex items-center justify-between">
-              <div className="font-semibold">{s.username || s.user_id || 'unknown'}</div>
-              <div className="text-xs text-gray-500">{new Date(s.created_at || s.createdAt).toLocaleString()}</div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {pageItems.map((submission) => {
+          const submittedAt = getSubmissionDate(submission);
+          const verdict = submission.verdict || submission.status || submission.result?.verdict || 'Unknown';
+          const points = getSubmissionPoints(submission);
+          return (
+            <div key={submission.id || submission._id} className="rounded border bg-white p-3">
+              <div className="flex items-center justify-between">
+                <div className="font-semibold">{submission.username || submission.userId || submission.user_id || 'unknown'}</div>
+                <div className="text-xs text-gray-500">
+                  {submittedAt ? new Date(submittedAt).toLocaleString() : 'Just now'}
+                </div>
+              </div>
+              <div className="mt-2 text-xs text-gray-600">
+                {submission.problemTitle || `Problem #${submission.problem_index ?? submission.problemIndex ?? 0}`} - {verdict}
+                <span className="ml-2 rounded bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">{points}/100 pts</span>
+              </div>
+              <pre className="mt-2 max-h-40 overflow-auto rounded bg-gray-100 p-2 font-mono text-xs">
+                {(submission.code || '').slice(0, 1000)}
+              </pre>
             </div>
-            <div className="text-xs text-gray-600 mt-2">Problem #{s.problem_index ?? s.problemIndex ?? 0} • {s.verdict || s.result?.verdict || '—'}</div>
-            <pre className="mt-2 font-mono text-xs bg-gray-100 p-2 rounded max-h-40 overflow-auto">{(s.code || '').slice(0, 1000)}</pre>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      <div className="flex items-center justify-between mt-4">
+      <div className="mt-4 flex items-center justify-between">
         <div className="text-xs text-gray-600">Showing {filtered.length} results</div>
         <div className="flex items-center gap-2">
-          <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} className="px-3 py-1 border rounded">Prev</button>
+          <button onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page === 1} className="rounded border px-3 py-1">
+            Prev
+          </button>
           <div className="text-xs">Page {page} / {totalPages}</div>
-          <button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page===totalPages} className="px-3 py-1 border rounded">Next</button>
+          <button onClick={() => setPage((value) => Math.min(totalPages, value + 1))} disabled={page === totalPages} className="rounded border px-3 py-1">
+            Next
+          </button>
         </div>
       </div>
     </div>
